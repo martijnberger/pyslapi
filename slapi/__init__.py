@@ -1,3 +1,3 @@
 __author__ = 'virt'
 
-__all__ = ['geometry','slapi']
+__all__ = ['geometry','slapi','entities']

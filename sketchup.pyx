@@ -10,6 +10,7 @@ from slapi.slapi cimport *
 from slapi.initialize cimport *
 from slapi.defs cimport *
 from slapi.unicodestring cimport *
+from slapi.entities cimport *
 
 cdef extern from "slapi/model/camera.h":
 
@@ -263,6 +264,58 @@ cdef class Camera:
             raise Exception("SUCameraGetOrientation" +  __str_from_SU_RESULT(r) )
         return (position.x, position.y, position.z), (target.x, target.y, target.z), (up_vector.x, up_vector.y, up_vector.z)
 
+cdef class Entities:
+    cdef SUEntitiesRef entities
+
+    def __cinit__(self):
+        self.entities.ptr = <void *> 0
+
+    cdef set_ptr(self, void* ptr):
+        self.entities.ptr = ptr
+
+    def NumFaces(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumFaces(self.entities, &count)
+        return count
+
+    def NumCurves(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumCurves(self.entities, &count)
+        return count
+
+    def NumGuidePoints(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumGuidePoints(self.entities, &count)
+        return count
+
+    def NumEdges(self, bool standalone_only=False):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumEdges(self.entities, standalone_only, &count)
+        return count
+
+    def NumPolyline3ds(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumPolyline3ds(self.entities, &count)
+        return count
+
+    def NumGroups(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumGroups(self.entities, &count)
+        return count
+
+    def NumImages(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumImages(self.entities, &count)
+        return count
+
+    def NumInstances(self):
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetNumInstances(self.entities, &count)
+        return count
+
+    def Instances(self):
+        cdef SU_RESULT res = SUEntitiesGetInstances(SUEntitiesRef entities, size_t len, SUComponentInstanceRef instances[], size_t* count)
+
 cdef class Model:
     cdef SUModelRef model
 
@@ -338,3 +391,8 @@ cdef class Model:
             cdef SUEntitiesRef entities
             entities.ptr = <void*> 0
             cdef SU_RESULT r = SUModelGetEntities(self.model, &entities)
+            if(r != 0):
+                raise Exception("SUModelGetEntities" +  __str_from_SU_RESULT(r) )
+            res = Entities()
+            res.set_ptr(entities.ptr)
+            return res

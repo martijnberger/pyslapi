@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-from libc.stddef cimport wchar_t
+from .defs cimport *
+from .unicodestring cimport *
 
-ctypedef wchar_t unichar
-ctypedef int SU_RESULT
 
 cdef extern from "slapi/slapi.h":
     cdef enum SUResult:

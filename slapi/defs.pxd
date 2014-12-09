@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+ctypedef int SU_RESULT
 
 cdef extern from "slapi/model/defs.h":
     ctypedef struct SUAttributeDictionaryRef:
