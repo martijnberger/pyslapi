@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from cpython.version cimport PY_MAJOR_VERSION
 from cpython.ref cimport PyObject
 from libcpp cimport bool
-
+from cython.operator cimport dereference as deref, preincrement as inc
 from libc.stdlib cimport malloc, free
 
 from slapi.geometry cimport *
@@ -128,6 +129,14 @@ cdef extern from "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
     SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
 
+cdef extern from "slapi/transformation.h":
+    struct SUTransformation:
+        double values[16] #; ///< Matrix values in column-major order.
+
+cdef extern from "slapi/model/component_instance.h":
+    SU_RESULT SUComponentInstanceGetName(SUComponentInstanceRef instance, SUStringRef* name)
+    SU_RESULT SUComponentInstanceGetTransform(SUComponentInstanceRef instance, SUTransformation* transform);
+
 def get_API_version():
     cdef size_t major, minor
     SUGetAPIVersion(&major, &minor)
@@ -162,6 +171,36 @@ def __str_from_SU_RESULT(SU_RESULT r):
         return "SU_ERROR_MODEL_INVALID"
     if r is SU_ERROR_MODEL_VERSION:
         return "SU_ERROR_MODEL_VERSION"
+
+cdef StringRef2Py(SUStringRef& suStr):
+    cdef size_t out_length = 0
+    cdef SU_RESULT res = SUStringGetUTF8Length(suStr, &out_length)
+    cdef char* out_char_array
+    cdef size_t out_number_of_chars_copied
+    if out_length == 0:
+        return ""
+    else:
+        malloc(sizeof(char) * (out_length + 16))
+        SUStringGetUTF8(suStr, out_length, out_char_array, &out_number_of_chars_copied)
+        return out_char_array
+
+cdef SUStringRef Py2StringRef(s):
+    cdef SUStringRef out_string_ref
+    cdef SU_RESULT res
+    if type(s) is unicode:
+        # fast path for most common case(s)
+        res = SUStringCreateFromUTF8(&out_string_ref, <unicode>s)
+    elif PY_MAJOR_VERSION < 3 and isinstance(s, bytes):
+        # only accept byte strings in Python 2.x, not in Py3
+        res = SUStringCreateFromUTF8(&out_string_ref,(<bytes>s).decode('ascii'))
+    elif isinstance(s, unicode):
+        # an evil cast to <unicode> might work here in some(!) cases,
+        # depending on what the further processing does.  to be safe,
+        # we can always create a copy instead
+        res = SUStringCreateFromUTF8(&out_string_ref, unicode(s))
+    else:
+        raise TypeError("Cannot make sense of string {}".format(s))
+    return out_string_ref
 
 cdef class Point2D:
     cdef SUPoint2D p
@@ -264,6 +303,31 @@ cdef class Camera:
             raise Exception("SUCameraGetOrientation" +  __str_from_SU_RESULT(r) )
         return (position.x, position.y, position.z), (target.x, target.y, target.z), (up_vector.x, up_vector.y, up_vector.z)
 
+
+cdef class Instance:
+    cdef SUComponentInstanceRef instance
+
+    def __cinit__(self):
+        self.instance.ptr = <void *> 0
+
+    def __dealloc__(self):
+        pass
+        #print("~Instance {} ".format(hex(<int> self.instance.ptr)))
+
+    def getName(self):
+        cdef SUStringRef n
+        n.ptr = <void*>0
+        SUStringCreate(&n)
+        SUComponentInstanceGetName(self.instance, &n)
+        return StringRef2Py(n)
+
+cdef instance_from_ptr(SUComponentInstanceRef& r):
+    res = Instance()
+    res.instance.ptr = r.ptr
+    #print("Instance {}".format(hex(<int> r.ptr)))
+    return res
+
+
 cdef class Entities:
     cdef SUEntitiesRef entities
 
@@ -314,7 +378,14 @@ cdef class Entities:
         return count
 
     def Instances(self):
-        cdef SU_RESULT res = SUEntitiesGetInstances(SUEntitiesRef entities, size_t len, SUComponentInstanceRef instances[], size_t* count)
+        cdef size_t len = 0
+        cdef SU_RESULT res1 = SUEntitiesGetNumInstances(self.entities, &len)
+        cdef SUComponentInstanceRef * instances = <SUComponentInstanceRef*>malloc(sizeof(SUComponentInstanceRef) * len)
+        cdef size_t count = 0
+        cdef SU_RESULT res = SUEntitiesGetInstances(self.entities, len, instances, &count)
+        for i in range(count):
+            yield instance_from_ptr(instances[i])
+        #free(instances)
 
 cdef class Model:
     cdef SUModelRef model
