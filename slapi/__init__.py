@@ -1,3 +1,3 @@
-__author__ = 'virt'
+__author__ = 'Martijn Berger'
 
-__all__ = ['geometry','slapi','entities']
+__all__ = ['geometry','slapi','entities','camera','model']
