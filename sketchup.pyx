@@ -13,6 +13,7 @@ from slapi.unicodestring cimport *
 from slapi.entities cimport *
 from slapi.camera cimport *
 from slapi.model cimport *
+from slapi.component cimport *
 
 cdef extern from "slapi/model/texture_writer.h":
     SU_RESULT SUTextureWriterCreate(SUTextureWriterRef* writer)
@@ -42,44 +43,7 @@ cdef extern from "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
     SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
 
-cdef extern from "slapi/transformation.h":
-    struct SUTransformation:
-        double values[16] #; ///< Matrix values in column-major order.
 
-cdef extern from "slapi/model/component_instance.h":
-    SU_RESULT SUComponentInstanceGetName(SUComponentInstanceRef instance, SUStringRef* name)
-    SU_RESULT SUComponentInstanceGetTransform(SUComponentInstanceRef instance, SUTransformation* transform);
-    SUEntityRef SUComponentInstanceToEntity(SUComponentInstanceRef instance);
-    SU_RESULT SUComponentInstanceGetDefinition(SUComponentInstanceRef instance, SUComponentDefinitionRef* component)
-
-cdef extern from "slapi/model/component_definition.h":
-    cdef enum SUSnapToBehavior:
-            SUSnapToBehavior_None = 0,
-            SUSnapToBehavior_Any,
-            SUSnapToBehavior_Horizontal,
-            SUSnapToBehavior_Vertical,
-            SUSnapToBehavior_Sloped
-    cdef struct SUComponentBehavior:
-        SUSnapToBehavior component_snap
-        bool component_cuts_opening
-        bool component_always_face_camera
-        bool component_shadows_face_sun
-    SUEntityRef SUComponentDefinitionToEntity(SUComponentDefinitionRef comp_def)
-    SUComponentDefinitionRef SUComponentDefinitionFromEntity(SUEntityRef entity)
-    SUDrawingElementRef SUComponentDefinitionToDrawingElement(SUComponentDefinitionRef comp_def)
-    SUComponentDefinitionRef SUComponentDefinitionFromDrawingElement(SUDrawingElementRef drawing_elem)
-    SU_RESULT SUComponentDefinitionCreate(SUComponentDefinitionRef* comp_def)
-    SU_RESULT SUComponentDefinitionRelease(SUComponentDefinitionRef* comp_def)
-    SU_RESULT SUComponentDefinitionGetName(SUComponentDefinitionRef comp_def, SUStringRef* name)
-    SU_RESULT SUComponentDefinitionSetName(SUComponentDefinitionRef comp_def, const char* name)
-    SU_RESULT SUComponentDefinitionGetGuid(SUComponentDefinitionRef comp_def, SUStringRef* guid_ref)
-    SU_RESULT SUComponentDefinitionGetEntities(SUComponentDefinitionRef comp_def, SUEntitiesRef* entities)
-    SU_RESULT SUComponentDefinitionGetDescription(SUComponentDefinitionRef comp_def, SUStringRef* desc)
-    SU_RESULT SUComponentDefinitionSetDescription(SUComponentDefinitionRef comp_def, const char* desc)
-    SU_RESULT SUComponentDefinitionCreateInstance(SUComponentDefinitionRef comp_def, SUComponentInstanceRef* instance)
-    SU_RESULT SUComponentDefinitionGetBehavior(SUComponentDefinitionRef comp_def, SUComponentBehavior* behavior)
-    SU_RESULT SUComponentDefinitionSetBehavior(SUComponentDefinitionRef comp_def, const SUComponentBehavior* behavior)
-    SU_RESULT SUComponentDefinitionApplySchemaType(SUComponentDefinitionRef comp_def,SUSchemaRef schema_ref, SUSchemaTypeRef schema_type_ref)
 
 
 def get_API_version():

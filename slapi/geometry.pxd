@@ -24,3 +24,7 @@ cdef extern from "slapi/geometry.h":
     struct SUBoundingBox3D:
         SUPoint3D min_point
         SUPoint3D max_point
+
+cdef extern from "slapi/transformation.h":
+    struct SUTransformation:
+        double values[16] #; ///< Matrix values in column-major order.
