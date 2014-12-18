@@ -303,19 +303,28 @@ cdef class Face:
         cdef size_t vertex_count = 0
         SUMeshHelperGetNumTriangles(mesh_ref, &triangle_count)
         SUMeshHelperGetNumVertices(mesh_ref, &vertex_count)
-
-        check_result(SUMeshHelperGetVertexIndices(mesh_ref, triangle_count * 3, size_t indices[], size_t* count)
-
-        check_result(SUMeshHelperGetVertices(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D vertices[], size_t* count)
+        cdef size_t* indices = <size_t*>malloc(triangle_count * 3 * sizeof(size_t) )
+        cdef size_t index_count = 0
+        check_result(SUMeshHelperGetVertexIndices(mesh_ref, triangle_count * 3, indices, &index_count))
+        cdef size_t got_vertex_count = 0
+        cdef SUPoint3D* vertices = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
+        check_result(SUMeshHelperGetVertices(mesh_ref, vertex_count, vertices, &got_vertex_count))
         #SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
         #SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
         #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
+        vertices_list = []
+        for i in range(got_vertex_count):
+            vertices_list.append((vertices[i].x, vertices[i].y, vertices[i].z))
+        triangles_list = []
+        for i in range(index_count):
+            offset = (<int>&(indices[i]) - <int>indices) / sizeof(size_t)
+            triangles_list.append(offset)
 
-        return (triangle_count, vertex_count)
+        return (triangle_count, vertex_count, vertices_list, triangles_list)
 
     def __repr__(self):
-        faces,  verts = self.get_verts()
-        return "Face with {} triangles {} vertices".format(faces, verts)
+        faces,  verts, l, t = self.get_verts()
+        return "Face with {} triangles {} vertices \n l: {} -> {}\n t:{} -> {}\n".format(faces, verts, len(l), l,len(t),  t)
 
 
 cdef face_from_ptr(SUFaceRef& r):

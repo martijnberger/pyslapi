@@ -28,7 +28,8 @@ bl_info = {
 
 import bpy
 import os
-from . import sketchup
+import time
+import sketchup
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty
 from bpy_extras.io_utils import ImportHelper, axis_conversion
@@ -67,7 +68,7 @@ def SketchupLog(*args, popup=False):
 
 class SceneImporter():
     def __init__(self):
-        self.filepath = '/tmp/untitled.mxs'
+        self.filepath = '/tmp/untitled.skp'
         self.name_mapping = {}
 
     def set_filename(self, filename):
@@ -78,7 +79,37 @@ class SceneImporter():
     def load(self, context, **options):
         """load a sketchup file"""
         self.context = context
+
+        SketchupLog('importing skp %r' % self.filepath)
+
+        addon_name = __name__.split('.')[0]
+        self.prefs = addon_prefs = context.user_preferences.addons[addon_name].preferences
+
+        time_main = time.time()
+
+        try:
+            skp_model = sketchup.Model.from_file(self.filepath)
+        except Exception as e:
+            SketchupLog('Error reading input file: %s' % self.filepath)
+            SketchupLog(e)
+            return {'FINISHED'}
+        self.skp_model = skp_model
+
+        time_new = time.time()
+        SketchupLog('Done parsing mxs %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
+
+        """
+        if options['import_camera']:
+            active_cam = self.write_camera(skp_model.active_camera)
+            for scene in skp_model.scenes:
+                cam = scene.cam
+                self.write_camera(cam)
+            context.scene.camera = active_cam
+        """
         return {'FINISHED'}
+
+    def write_camera(self, camera):
+      pass
 
 
 class ImportSKP(bpy.types.Operator, ImportHelper):
