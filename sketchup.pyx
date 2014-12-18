@@ -51,6 +51,12 @@ def get_API_version():
     SUGetAPIVersion(&major, &minor)
     return (major,minor)
 
+cdef check_result(SU_RESULT r):
+    if not r is SU_ERROR_NONE:
+        print(__str_from_SU_RESULT(r))
+        raise IOError("Sketchup library giving unexpected results")
+
+
 cdef __str_from_SU_RESULT(SU_RESULT r):
     if r is SU_ERROR_NONE:
         return "SU_ERROR_NONE"
@@ -280,6 +286,44 @@ cdef class Entity:
     def __cinit__(self):
         pass
 
+
+cdef class Face:
+    cdef SUFaceRef face_ref
+
+    def __cinit__(self):
+        self.face_ref.ptr = <void *> 0
+
+
+    def get_verts(self):
+        print(hex(<int>self.face_ref.ptr))
+        cdef SUMeshHelperRef mesh_ref
+        mesh_ref.ptr = <void*> 0
+        check_result(SUMeshHelperCreate(&mesh_ref, self.face_ref))
+        cdef size_t triangle_count = 0
+        cdef size_t vertex_count = 0
+        SUMeshHelperGetNumTriangles(mesh_ref, &triangle_count)
+        SUMeshHelperGetNumVertices(mesh_ref, &vertex_count)
+
+        check_result(SUMeshHelperGetVertexIndices(mesh_ref, triangle_count * 3, size_t indices[], size_t* count)
+
+        check_result(SUMeshHelperGetVertices(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D vertices[], size_t* count)
+        #SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+        #SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+        #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
+
+        return (triangle_count, vertex_count)
+
+    def __repr__(self):
+        faces,  verts = self.get_verts()
+        return "Face with {} triangles {} vertices".format(faces, verts)
+
+
+cdef face_from_ptr(SUFaceRef& r):
+    res = Face()
+    res.face_ref.ptr = r.ptr
+    print(hex(<int>r.ptr))
+    return res
+
 cdef class Entities:
     cdef SUEntitiesRef entities
 
@@ -329,15 +373,29 @@ cdef class Entities:
         cdef SU_RESULT res = SUEntitiesGetNumInstances(self.entities, &count)
         return count
 
-    def Instances(self):
-        cdef size_t len = 0
-        cdef SU_RESULT res1 = SUEntitiesGetNumInstances(self.entities, &len)
-        cdef SUComponentInstanceRef * instances = <SUComponentInstanceRef*>malloc(sizeof(SUComponentInstanceRef) * len)
-        cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetInstances(self.entities, len, instances, &count)
-        for i in range(count):
-            yield instance_from_ptr(instances[i])
-        #free(instances)
+    property instances:
+        def __get__(self):
+            cdef size_t len = 0
+            SUEntitiesGetNumInstances(self.entities, &len)
+            cdef SUComponentInstanceRef * instances = <SUComponentInstanceRef*>malloc(sizeof(SUComponentInstanceRef) * len)
+            cdef size_t count = 0
+            cdef SU_RESULT res = SUEntitiesGetInstances(self.entities, len, instances, &count)
+            for i in range(count):
+                yield instance_from_ptr(instances[i])
+            #free(instances)
+
+    property faces:
+        def __get__(self):
+            cdef size_t len = 0
+            SUEntitiesGetNumFaces(self.entities, &len)
+            cdef SUFaceRef * faces = <SUFaceRef*>malloc(sizeof(SUFaceRef) * len)
+            cdef size_t count = 0
+            check_result(SUEntitiesGetFaces(self.entities, len, faces, &count))
+            for i in range(count):
+                yield face_from_ptr(faces[i])
+            #free(faces)
+
+
 
 cdef class Model:
     cdef SUModelRef model

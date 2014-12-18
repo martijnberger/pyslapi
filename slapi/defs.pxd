@@ -76,3 +76,5 @@ cdef extern from "slapi/model/defs.h":
         void *ptr
     ctypedef struct SUVertexRef:
         void *ptr
+    ctypedef struct SULoopInputRef:
+        void *ptr
