@@ -15,6 +15,7 @@ from slapi.camera cimport *
 from slapi.model cimport *
 from slapi.component cimport *
 from slapi.material cimport *
+from slapi.group cimport *
 
 cdef extern from "slapi/model/texture_writer.h":
     SU_RESULT SUTextureWriterCreate(SUTextureWriterRef* writer)
@@ -145,7 +146,7 @@ cdef class Point2D:
 cdef class Point3D:
     cdef SUPoint3D p
 
-    def __cinit__(self, double x, double y, double z):
+    def __cinit__(self, double x=0, double y=0, double z=0):
         self.p.x = x
         self.p.y = y
         self.p.z = z
@@ -272,7 +273,19 @@ cdef class Instance:
             c.comp_def.ptr = component.ptr
             return c
 
-cdef instance_from_ptr(SUComponentInstanceRef& r):
+    property transform:
+        def __get__(self):
+            cdef SUTransformation transform
+            check_result(SUComponentInstanceGetTransform(self.instance, &transform))
+            res = []
+            for i in range(12):
+                res.append(transform.values[i])
+            for i in range(12,15,1):
+                res.append(m(transform.values[i]))
+            res.append(transform.values[15])
+            return res
+
+cdef instance_from_ptr(SUComponentInstanceRef r):
     res = Instance()
     res.instance.ptr = r.ptr
     #print("Instance {}".format(hex(<int> r.ptr)))
@@ -293,6 +306,51 @@ cdef class Component:
             res.set_ptr(e.ptr)
             return res
 
+
+cdef class Group:
+    cdef SUGroupRef group
+
+    def __cinit__(self):
+        pass
+
+    property name:
+        def __get__(self):
+            cdef SUStringRef n
+            n.ptr = <void*>0
+            SUStringCreate(&n)
+            check_result(SUGroupGetName(self.group, &n))
+            return StringRef2Py(n)
+
+    property transform:
+        def __get__(self):
+            cdef SUTransformation transform
+            check_result(SUGroupGetTransform(self.group, &transform))
+            res = []
+            for i in range(12):
+                res.append(transform.values[i])
+            for i in range(12,15,1):
+                res.append(m(transform.values[i]))
+            res.append(transform.values[15])
+            return res
+
+    property entities:
+        def __get__(self):
+            cdef SUEntitiesRef entities
+            entities.ptr = <void*> 0
+            check_result(SUGroupGetEntities(self.group, &entities))
+            res = Entities()
+            res.set_ptr(entities.ptr)
+            return res
+
+    def __repr__(self):
+        return "Group {} \n\ttransform {}".format(self.name, self.transform)
+
+
+
+cdef group_from_ptr(SUGroupRef r):
+    res = Group()
+    res.group.ptr = r.ptr
+    return res
 
 cdef class Entity:
     cdef SUEntityRef entity
@@ -357,54 +415,43 @@ cdef class Entities:
 
     def NumFaces(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumFaces(self.entities, &count)
+        check_result(SUEntitiesGetNumFaces(self.entities, &count))
         return count
 
     def NumCurves(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumCurves(self.entities, &count)
+        check_result(SUEntitiesGetNumCurves(self.entities, &count))
         return count
 
     def NumGuidePoints(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumGuidePoints(self.entities, &count)
+        check_result(SUEntitiesGetNumGuidePoints(self.entities, &count))
         return count
 
     def NumEdges(self, bool standalone_only=False):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumEdges(self.entities, standalone_only, &count)
+        check_result(SUEntitiesGetNumEdges(self.entities, standalone_only, &count))
         return count
 
     def NumPolyline3ds(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumPolyline3ds(self.entities, &count)
+        check_result(SUEntitiesGetNumPolyline3ds(self.entities, &count))
         return count
 
     def NumGroups(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumGroups(self.entities, &count)
+        check_result(SUEntitiesGetNumGroups(self.entities, &count))
         return count
 
     def NumImages(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumImages(self.entities, &count)
+        check_result(SUEntitiesGetNumImages(self.entities, &count))
         return count
 
     def NumInstances(self):
         cdef size_t count = 0
-        cdef SU_RESULT res = SUEntitiesGetNumInstances(self.entities, &count)
+        check_result(SUEntitiesGetNumInstances(self.entities, &count))
         return count
-
-    property instances:
-        def __get__(self):
-            cdef size_t len = 0
-            SUEntitiesGetNumInstances(self.entities, &len)
-            cdef SUComponentInstanceRef * instances = <SUComponentInstanceRef*>malloc(sizeof(SUComponentInstanceRef) * len)
-            cdef size_t count = 0
-            cdef SU_RESULT res = SUEntitiesGetInstances(self.entities, len, instances, &count)
-            for i in range(count):
-                yield instance_from_ptr(instances[i])
-            #free(instances)
 
     property faces:
         def __get__(self):
@@ -416,6 +463,29 @@ cdef class Entities:
             for i in range(count):
                 yield face_from_ptr(faces[i])
             #free(faces)
+
+    property groups:
+        def __get__(self):
+            cdef size_t num_groups = 0
+            check_result(SUEntitiesGetNumGroups(self.entities, &num_groups))
+            cdef SUGroupRef* groups = <SUGroupRef*> malloc(sizeof(SUGroupRef) *num_groups)
+            cdef size_t count = 0
+            check_result(SUEntitiesGetGroups(self.entities, num_groups, groups, &count))
+            for i in range(count):
+                yield group_from_ptr(groups[i])
+            free(groups)
+
+    property instances:
+        def __get__(self):
+            cdef size_t num_instances = 0
+            check_result(SUEntitiesGetNumInstances(self.entities, &num_instances))
+            cdef SUComponentInstanceRef* instances = <SUComponentInstanceRef*> malloc(sizeof(SUComponentInstanceRef) *num_instances)
+            cdef size_t count = 0
+            check_result(SUEntitiesGetInstances(self.entities, num_instances,instances, &count))
+            for i in range(count):
+                yield instance_from_ptr(instances[i])
+            free(instances)
+
 
 
 cdef class Material:
@@ -517,5 +587,7 @@ cdef class Model:
                 m.material.ptr = materials[i].ptr
                 yield m
             free(materials)
+
+
 
 

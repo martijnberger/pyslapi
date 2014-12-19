@@ -31,6 +31,7 @@ import os
 import time
 import sketchup
 import mathutils
+from mathutils import Matrix, Vector
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty
 from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list
@@ -104,31 +105,24 @@ class SceneImporter():
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
-        self.write_mesh_data(skp_model.Entities.faces)
+        self.write_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
 
         return {'FINISHED'}
 
 
-    def write_mesh_data(self, fs):
+    def write_mesh_data(self, fs, name):
         verts = []
         faces = []
 
         for f in fs:
             vert_done = len(verts)
-            print("vert_done", vert_done)
             v, tri = f.triangles
             for face in tri:
                 faces.append((face[0] + vert_done, face[1] + vert_done, face[2] +vert_done ) )
             verts = verts + v
 
 
-        print("Verts done {}".format(vert_done))
-        print("len verts {}".format(len(verts)))
-        print("len faces {}".format(len(faces)))
-
-        print(faces)
-
-        me = bpy.data.meshes.new("Sketchup")
+        me = bpy.data.meshes.new(name)
         me.vertices.add(len(verts))
         me.tessfaces.add(len(faces))
 
@@ -139,6 +133,33 @@ class SceneImporter():
         me.validate()
         return me, len(verts)
 
+    def write_entities(self, entities, name, transform):
+        print("Creating object -> {}".format(name))
+        me, v = self.write_mesh_data(entities.faces, name)
+        ob = bpy.data.objects.new(name, me)
+        #ob.matrix_world = transform
+        me.update(calc_edges=True)
+        self.context.scene.objects.link(ob)
+
+        for group in entities.groups:
+            t = group.transform
+            trans = Matrix([[t[0], t[4],  t[8], t[12]],
+                            [t[1], t[5],  t[9], t[13]],
+                            [t[2], t[6], t[10], t[14]],
+                            [t[3], t[7], t[11], t[15]]] )# * transform
+            self.write_entities(group.entities, "Group",trans)
+
+        for instance in entities.instances:
+            t = instance.transform
+            trans = Matrix([[t[0], t[4],  t[8], t[12]],
+                            [t[1], t[5],  t[9], t[13]],
+                            [t[2], t[6], t[10], t[14]],
+                            [t[3], t[7], t[11], t[15]]] )# * transform
+            self.write_entities(instance.definition.entities, "Component",trans)
+
+        return ob
+
+
 
 
 
@@ -147,8 +168,9 @@ class SceneImporter():
         bpy.ops.object.add(type='CAMERA', location=pos)
         ob = self.context.object
         z = (mathutils.Vector(pos) - mathutils.Vector(target)).normalized()
-        y = mathutils.Vector(up).normalized()
-        x = y.cross(z)
+        x = mathutils.Vector(up).cross(z).normalized()
+        y = x.cross(z)
+
         ob.matrix_world.col[0] = x.resized(4)
         ob.matrix_world.col[1] = y.resized(4)
         ob.matrix_world.col[2] = z.resized(4)
