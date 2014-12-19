@@ -14,6 +14,7 @@ from slapi.entities cimport *
 from slapi.camera cimport *
 from slapi.model cimport *
 from slapi.component cimport *
+from slapi.material cimport *
 
 cdef extern from "slapi/model/texture_writer.h":
     SU_RESULT SUTextureWriterCreate(SUTextureWriterRef* writer)
@@ -222,9 +223,7 @@ cdef class Camera:
         cdef SUPoint3D position
         cdef SUPoint3D target
         cdef SUVector3D up_vector
-        cdef SU_RESULT r = SUCameraGetOrientation(self.camera, &position, &target, &up_vector)
-        if(r != 0):
-            raise Exception("SUCameraGetOrientation" +  __str_from_SU_RESULT(r) )
+        check_result(SUCameraGetOrientation(self.camera, &position, &target, &up_vector))
         return (m(position.x), m(position.y), m(position.z)), \
                (m(target.x), m(target.y), m(target.z)), \
                (up_vector.x, up_vector.y, up_vector.x)
@@ -309,43 +308,42 @@ cdef class Face:
         self.face_ref.ptr = <void *> 0
 
 
-    def get_verts(self):
-        print(hex(<int>self.face_ref.ptr))
-        cdef SUMeshHelperRef mesh_ref
-        mesh_ref.ptr = <void*> 0
-        check_result(SUMeshHelperCreate(&mesh_ref, self.face_ref))
-        cdef size_t triangle_count = 0
-        cdef size_t vertex_count = 0
-        SUMeshHelperGetNumTriangles(mesh_ref, &triangle_count)
-        SUMeshHelperGetNumVertices(mesh_ref, &vertex_count)
-        cdef size_t* indices = <size_t*>malloc(triangle_count * 3 * sizeof(size_t) )
-        cdef size_t index_count = 0
-        check_result(SUMeshHelperGetVertexIndices(mesh_ref, triangle_count * 3, indices, &index_count))
-        cdef size_t got_vertex_count = 0
-        cdef SUPoint3D* vertices = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
-        check_result(SUMeshHelperGetVertices(mesh_ref, vertex_count, vertices, &got_vertex_count))
-        #SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-        #SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-        #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
-        vertices_list = []
-        for i in range(got_vertex_count):
-            vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
-        triangles_list = []
-        for i in range(index_count):
-            offset = (<int>&(indices[i]) - <int>indices) / sizeof(size_t)
-            triangles_list.append(offset)
+    property triangles:
+        def __get__(self):
+            cdef SUMeshHelperRef mesh_ref
+            mesh_ref.ptr = <void*> 0
+            check_result(SUMeshHelperCreate(&mesh_ref, self.face_ref))
+            cdef size_t triangle_count = 0
+            cdef size_t vertex_count = 0
+            check_result(SUMeshHelperGetNumTriangles(mesh_ref, &triangle_count))
+            check_result(SUMeshHelperGetNumVertices(mesh_ref, &vertex_count))
+            cdef size_t* indices = <size_t*>malloc(triangle_count * 3 * sizeof(size_t) )
+            cdef size_t index_count = 0
+            check_result(SUMeshHelperGetVertexIndices(mesh_ref, triangle_count * 3, indices, &index_count))
+            cdef size_t got_vertex_count = 0
+            cdef SUPoint3D* vertices = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
+            check_result(SUMeshHelperGetVertices(mesh_ref, vertex_count, vertices, &got_vertex_count))
+            #SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+            #SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+            #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
+            vertices_list = []
+            for i in range(got_vertex_count):
+                vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
+            triangles_list = []
+            for ii in range(index_count / 3):
+                i = ii * 3
+                triangles_list.append( (indices[i], indices[i+1], indices[i+2]) )
 
-        return (triangle_count, vertex_count, vertices_list, triangles_list)
+            return (vertices_list, triangles_list)
 
     def __repr__(self):
-        faces,  verts, l, t = self.get_verts()
-        return "Face with {} triangles {} vertices \n l: {} -> {}\n t:{} -> {}\n".format(faces, verts, len(l), l,len(t),  t)
+        v, t = self.triangles
+        return "Face with {} triangles {} vertices\n {} {}".format(len(t), len(v), v, t)
 
 
 cdef face_from_ptr(SUFaceRef& r):
     res = Face()
     res.face_ref.ptr = r.ptr
-    print(hex(<int>r.ptr))
     return res
 
 cdef class Entities:
@@ -411,7 +409,7 @@ cdef class Entities:
     property faces:
         def __get__(self):
             cdef size_t len = 0
-            SUEntitiesGetNumFaces(self.entities, &len)
+            check_result(SUEntitiesGetNumFaces(self.entities, &len))
             cdef SUFaceRef * faces = <SUFaceRef*>malloc(sizeof(SUFaceRef) * len)
             cdef size_t count = 0
             check_result(SUEntitiesGetFaces(self.entities, len, faces, &count))
@@ -419,6 +417,27 @@ cdef class Entities:
                 yield face_from_ptr(faces[i])
             #free(faces)
 
+
+cdef class Material:
+    cdef SUMaterialRef material
+
+    def __cinit__(self):
+        self.material.ptr = <void *> 0
+
+    property name:
+        def __get__(self):
+            cdef SUStringRef n
+            n.ptr = <void*>0
+            SUStringCreate(&n)
+            check_result(SUMaterialGetName(self.material, &n))
+            return StringRef2Py(n)
+
+
+    property color:
+        def __get__(self):
+            cdef SUColor c
+            check_result(SUMaterialGetColor(self.material, &c))
+            return (c.red, c.green, c.blue, c.alpha)
 
 
 cdef class Model:
@@ -438,45 +457,33 @@ cdef class Model:
         m.ptr = <void*> 0
         py_byte_string = filename.encode('UTF-8')
         cdef const char* f = py_byte_string
-        cdef SU_RESULT r = SUModelCreateFromFile(&m, f)
-        if(r != 0):
-            raise Exception( __str_from_SU_RESULT(r) )
+        check_result(SUModelCreateFromFile(&m, f))
         res.set_ptr(m.ptr)
         return res
 
     def NumMaterials(self):
         cdef size_t count = 0
-        cdef SU_RESULT r = SUModelGetNumMaterials (self.model, &count)
-        if(r != 0):
-            raise Exception("SUModelGetNumMaterials" +  __str_from_SU_RESULT(r) )
+        check_result(SUModelGetNumMaterials (self.model, &count))
         return count
 
     def NumComponentDefinitions(self):
         cdef size_t count = 0
-        cdef SU_RESULT r = SUModelGetNumComponentDefinitions (self.model, &count)
-        if(r != 0):
-            raise Exception("SUModelGetNumComponentDefinitions" +  __str_from_SU_RESULT(r) )
+        check_result(SUModelGetNumComponentDefinitions (self.model, &count))
         return count
 
     def NumScenes(self):
         cdef size_t count = 0
-        cdef SU_RESULT r = SUModelGetNumScenes (self.model, &count)
-        if(r != 0):
-            raise Exception("SUModelGetNumScenes" +  __str_from_SU_RESULT(r) )
+        check_result(SUModelGetNumScenes (self.model, &count))
         return count
 
     def NumLayers(self):
         cdef size_t count = 0
-        cdef SU_RESULT r = SUModelGetNumLayers (self.model, &count)
-        if(r != 0):
-            raise Exception("SUModelGetNumLayers" +  __str_from_SU_RESULT(r) )
+        check_result(SUModelGetNumLayers (self.model, &count))
         return count
 
     def NumAttributeDictionaries(self):
         cdef size_t count = 0
-        cdef SU_RESULT r = SUModelGetNumAttributeDictionaries (self.model, &count)
-        if(r != 0):
-            raise Exception("NumAttributeDictionaries" +  __str_from_SU_RESULT(r) )
+        check_result(SUModelGetNumAttributeDictionaries (self.model, &count))
         return count
 
 
@@ -484,9 +491,7 @@ cdef class Model:
         def __get__(self):
             cdef SUCameraRef c
             c.ptr = <void*> 0
-            cdef SU_RESULT r = SUModelGetCamera(self.model, &c)
-            if(r != 0):
-                raise Exception("SUModelGetCamera" +  __str_from_SU_RESULT(r) )
+            check_result(SUModelGetCamera(self.model, &c))
             res = Camera()
             res.set_ptr(c.ptr)
             return res
@@ -495,9 +500,22 @@ cdef class Model:
         def __get__(self):
             cdef SUEntitiesRef entities
             entities.ptr = <void*> 0
-            cdef SU_RESULT r = SUModelGetEntities(self.model, &entities)
-            if(r != 0):
-                raise Exception("SUModelGetEntities" +  __str_from_SU_RESULT(r) )
+            check_result(SUModelGetEntities(self.model, &entities))
             res = Entities()
             res.set_ptr(entities.ptr)
             return res
+
+    property materials:
+        def __get__(self):
+            cdef size_t num_materials = 0
+            check_result(SUModelGetNumMaterials(self.model, &num_materials))
+            cdef SUMaterialRef* materials = <SUMaterialRef*>malloc(sizeof(SUMaterialRef) * num_materials)
+            cdef size_t count = 0
+            check_result(SUModelGetMaterials(self.model, num_materials, materials, &count))
+            for i in range(count):
+                m = Material()
+                m.material.ptr = materials[i].ptr
+                yield m
+            free(materials)
+
+

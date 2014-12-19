@@ -33,7 +33,7 @@ import sketchup
 import mathutils
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty
-from bpy_extras.io_utils import ImportHelper
+from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list
 from extensions_framework import log
 
 
@@ -104,7 +104,43 @@ class SceneImporter():
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
+        self.write_mesh_data(skp_model.Entities.faces)
+
         return {'FINISHED'}
+
+
+    def write_mesh_data(self, fs):
+        verts = []
+        faces = []
+
+        for f in fs:
+            vert_done = len(verts)
+            print("vert_done", vert_done)
+            v, tri = f.triangles
+            for face in tri:
+                faces.append((face[0] + vert_done, face[1] + vert_done, face[2] +vert_done ) )
+            verts = verts + v
+
+
+        print("Verts done {}".format(vert_done))
+        print("len verts {}".format(len(verts)))
+        print("len faces {}".format(len(faces)))
+
+        print(faces)
+
+        me = bpy.data.meshes.new("Sketchup")
+        me.vertices.add(len(verts))
+        me.tessfaces.add(len(faces))
+
+        me.vertices.foreach_set("co", unpack_list(verts))
+        me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
+
+        me.update(calc_edges=True)
+        me.validate()
+        return me, len(verts)
+
+
+
 
     def write_camera(self, camera):
         pos, target, up = camera.GetOrientation()
