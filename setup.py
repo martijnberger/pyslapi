@@ -13,13 +13,13 @@ if platform.system() == 'Linux':
     extra_compile_args=[]
     extra_link_args=['-Lbinaries/x86-64']
 elif platform.system() == 'Darwin': # OS x
-    libraries=["mxs"]
-    extra_compile_args=[]
-    extra_link_args=['-F.','-framework slapi']
+    libraries=[]
+    extra_compile_args=['-F.']
+    extra_link_args=['-rpath','.','-F','.','-framework','slapi']
 else:
     libraries=["slapi"]
-    extra_compile_args=['/Zp8']
-    extra_link_args=['/LIBPATH:binaries/x64']
+    extra_compile_args=[]
+    extra_link_args=[]
 
 setup(
       name = "Sketchup",
