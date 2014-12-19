@@ -30,9 +30,10 @@ import bpy
 import os
 import time
 import sketchup
+import mathutils
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty
-from bpy_extras.io_utils import ImportHelper, axis_conversion
+from bpy_extras.io_utils import ImportHelper
 from extensions_framework import log
 
 
@@ -98,18 +99,29 @@ class SceneImporter():
         time_new = time.time()
         SketchupLog('Done parsing mxs %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
 
-        """
+
         if options['import_camera']:
-            active_cam = self.write_camera(skp_model.active_camera)
-            for scene in skp_model.scenes:
-                cam = scene.cam
-                self.write_camera(cam)
+            active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
-        """
+
         return {'FINISHED'}
 
     def write_camera(self, camera):
-      pass
+        pos, target, up = camera.GetOrientation()
+        bpy.ops.object.add(type='CAMERA', location=pos)
+        ob = self.context.object
+        z = (mathutils.Vector(pos) - mathutils.Vector(target)).normalized()
+        y = mathutils.Vector(up).normalized()
+        x = y.cross(z)
+        ob.matrix_world.col[0] = x.resized(4)
+        ob.matrix_world.col[1] = y.resized(4)
+        ob.matrix_world.col[2] = z.resized(4)
+
+        cam = ob.data
+        cam.lens = camera.fov
+        cam.clip_end = self.prefs.camera_far_plane
+        cam.name = "Active Camera"
+
 
 
 class ImportSKP(bpy.types.Operator, ImportHelper):

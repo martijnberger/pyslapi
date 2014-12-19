@@ -44,7 +44,12 @@ cdef extern from "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
 
 
-
+cdef double m(double v):
+    """
+    :param v: value to be converted from inches to meters
+    :return: value in meters
+    """
+    return <double>0.0254 * v
 
 def get_API_version():
     cdef size_t major, minor
@@ -220,7 +225,17 @@ cdef class Camera:
         cdef SU_RESULT r = SUCameraGetOrientation(self.camera, &position, &target, &up_vector)
         if(r != 0):
             raise Exception("SUCameraGetOrientation" +  __str_from_SU_RESULT(r) )
-        return (position.x, position.y, position.z), (target.x, target.y, target.z), (up_vector.x, up_vector.y, up_vector.z)
+        return (m(position.x), m(position.y), m(position.z)), \
+               (m(target.x), m(target.y), m(target.z)), \
+               (up_vector.x, up_vector.y, up_vector.x)
+
+    property fov:
+        def __get__(self):
+            cdef double fov
+            check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
+            return fov
+
+
 
 
 cdef class Instance:
@@ -314,7 +329,7 @@ cdef class Face:
         #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
         vertices_list = []
         for i in range(got_vertex_count):
-            vertices_list.append((vertices[i].x, vertices[i].y, vertices[i].z))
+            vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
         triangles_list = []
         for i in range(index_count):
             offset = (<int>&(indices[i]) - <int>indices) / sizeof(size_t)
@@ -465,7 +480,7 @@ cdef class Model:
         return count
 
 
-    property Camera:
+    property camera:
         def __get__(self):
             cdef SUCameraRef c
             c.ptr = <void*> 0
