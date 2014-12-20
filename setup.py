@@ -15,7 +15,7 @@ if platform.system() == 'Linux':
 elif platform.system() == 'Darwin': # OS x
     libraries=[]
     extra_compile_args=['-F.']
-    extra_link_args=['-rpath','.','-F','.','-framework','slapi']
+    extra_link_args=['-F','.','-framework','slapi']
 else:
     libraries=["slapi"]
     extra_compile_args=[]
@@ -35,4 +35,4 @@ setup(
     embedsignature=True
     )]
     )
-
+#install_name_tool -change "@rpath/slapi.framework/Versions/Current/slapi" "@loader_path/slapi.framework/Versions/Current/slapi" sketchup.so
