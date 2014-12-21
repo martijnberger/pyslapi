@@ -133,11 +133,11 @@ class SceneImporter():
         me.validate()
         return me, len(verts)
 
-    def write_entities(self, entities, name, transform):
+    def write_entities(self, entities, name, parent_tranform):
         print("Creating object -> {}".format(name))
         me, v = self.write_mesh_data(entities.faces, name)
         ob = bpy.data.objects.new(name, me)
-        #ob.matrix_world = transform
+        ob.matrix_world = parent_tranform
         me.update(calc_edges=True)
         self.context.scene.objects.link(ob)
 
@@ -146,8 +146,8 @@ class SceneImporter():
             trans = Matrix([[t[0], t[4],  t[8], t[12]],
                             [t[1], t[5],  t[9], t[13]],
                             [t[2], t[6], t[10], t[14]],
-                            [t[3], t[7], t[11], t[15]]] )# * transform
-            self.write_entities(group.entities, "Group",trans)
+                            [t[3], t[7], t[11], t[15]]] )
+            self.write_entities(group.entities, "Group",parent_tranform * trans)
 
         for instance in entities.instances:
             t = instance.transform
@@ -155,7 +155,7 @@ class SceneImporter():
                             [t[1], t[5],  t[9], t[13]],
                             [t[2], t[6], t[10], t[14]],
                             [t[3], t[7], t[11], t[15]]] )# * transform
-            self.write_entities(instance.definition.entities, "Component",trans)
+            self.write_entities(instance.definition.entities, "Component",parent_tranform * trans)
 
         return ob
 
