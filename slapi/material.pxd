@@ -3,8 +3,6 @@ from libcpp cimport bool
 from .defs cimport *
 from .unicodestring cimport *
 
-ctypedef unsigned char SUByte
-
 cdef extern from "slapi/color.h":
     ctypedef struct SUColor:
         SUByte red,
