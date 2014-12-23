@@ -495,6 +495,15 @@ cdef class Material:
             check_result(SUMaterialGetColor(self.material, &c))
             return (c.red, c.green, c.blue, c.alpha)
 
+    property opacity:
+        def __get__(self):
+            cdef double alpha
+            check_result(SUMaterialGetOpacity(self.material, &alpha))
+            return alpha
+
+        def __set__(self,double alpha):
+            check_result(SUMaterialSetOpacity(self.material, alpha))
+
 
 cdef class Model:
     cdef SUModelRef model
