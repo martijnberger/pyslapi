@@ -47,7 +47,7 @@ def get_API_version():
 cdef check_result(SU_RESULT r):
     if not r is SU_ERROR_NONE:
         print(__str_from_SU_RESULT(r))
-        raise IOError("Sketchup library giving unexpected results")
+        raise IOError("Sketchup library giving unexpected results {}".format(__str_from_SU_RESULT(r)))
 
 
 cdef __str_from_SU_RESULT(SU_RESULT r):
@@ -379,6 +379,18 @@ cdef class Face:
                 triangles_list.append( (indices[i], indices[i+1], indices[i+2]) )
 
             return (vertices_list, triangles_list)
+
+    property material:
+        def __get__(self):
+            cdef SUMaterialRef mat
+            mat.ptr = <void*> 0
+            cdef SU_RESULT res = SUFaceGetFrontMaterial(self.face_ref, &mat)
+            if res == SU_ERROR_NONE:
+                m = Material()
+                m.material.ptr = mat.ptr
+                return m
+
+
 
     def __repr__(self):
         v, t = self.triangles

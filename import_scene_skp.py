@@ -98,31 +98,75 @@ class SceneImporter():
         self.skp_model = skp_model
 
         time_new = time.time()
-        SketchupLog('Done parsing mxs %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
+        SketchupLog('Done parsing skp %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
 
 
         if options['import_camera']:
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
+        self.write_materials(skp_model.materials)
+
         self.write_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
 
         return {'FINISHED'}
+
+
+    def write_materials(self,materials):
+        self.materials = {'Material': bpy.data.materials['Material']}
+
+        for mat in materials:
+
+            name = mat.name.decode("UTF-8")
+
+            if not name in bpy.data.materials:
+                print(name, mat.color)
+                bmat = bpy.data.materials.new(name)
+                r, g, b, a = mat.color
+                print(r,g,b)
+                bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
+                bmat.use_nodes = True
+                self.materials[name] = bmat
+
 
 
     def write_mesh_data(self, fs, name):
         verts = []
         faces = []
 
+        seen = {}
+
+        mat = 'Material'
+
         for f in fs:
             vert_done = len(verts)
-            v, tri = f.triangles
-            for face in tri:
-                faces.append((face[0] + vert_done, face[1] + vert_done, face[2] +vert_done ) )
-            verts = verts + v
+            vs, tri = f.triangles
 
+            if f.material:
+                mat = f.material.name.decode("UTF-8")
+            else:
+                mat = 'Material'
+
+            new_verts = []
+
+            mapping = {}
+            not_mapped = vert_done
+            for i, v in enumerate(vs):
+                if v in seen:
+                    mapping[i] = seen[v]
+                else:
+                    mapping[i] = not_mapped
+                    not_mapped += 1
+                    new_verts.append(v)
+
+            for face in tri:
+                faces.append((face[0] + vert_done, face[1] + vert_done, face[2] + vert_done ) )
+            verts = verts + new_verts
 
         me = bpy.data.meshes.new(name)
+
+        me.materials.append(self.materials[mat])
+
         me.vertices.add(len(verts))
         me.tessfaces.add(len(faces))
 
