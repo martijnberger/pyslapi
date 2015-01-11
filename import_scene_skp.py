@@ -15,7 +15,7 @@ __license__ = "GPL"
 # along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name": "Sketchup importer/exporter",
+    "name": "Sketchup importer",
     "author": "Martijn Berger",
     "version": (0, 0, 1, 'dev'),
     "blender": (2, 7, 2),
@@ -24,13 +24,14 @@ bl_info = {
     "wiki_url": "https://github.com/martijnberger/pyslapi",
     "tracker_url": "",
     "category": "Import-Export",
-    "location": "File > Export"}
+    "location": "File > Import"}
 
 import bpy
 import os
 import time
 import sketchup
 import mathutils
+from collections import OrderedDict, defaultdict
 from mathutils import Matrix, Vector
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty
@@ -38,22 +39,24 @@ from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list
 from extensions_framework import log
 
 
+class keep_offset(defaultdict):
+    def __init__(self):
+        defaultdict.__init__(self, int)
+
+    def __missing__(self, _):
+        return defaultdict.__len__(self)
+
+    def __getitem__(self, item):
+        number = defaultdict.__getitem__(self, item)
+        self[item] = number
+        return number
 
 class SketchupAddonPreferences(AddonPreferences):
     bl_idname = "import_scene_skp"
 
-    camera_far_plane = IntProperty(
-            name="Default Camera Distance",
-            default=1250,
-            )
-    draw_bounds = IntProperty(
-            name="Draw object as bounds when over",
-            default=5000,
-            )
-    max_instance = IntProperty(
-            name="Create DUPLI vert instance when count over",
-            default=50,
-            )
+    camera_far_plane = IntProperty(name="Default Camera Distance", default=1250)
+    draw_bounds = IntProperty(name="Draw object as bounds when over", default=5000)
+    max_instance = IntProperty( name="Create DUPLI vert instance when count over", default=50)
 
 
     def draw(self, context):
@@ -63,9 +66,9 @@ class SketchupAddonPreferences(AddonPreferences):
         layout.prop(self, "draw_bounds")
         layout.prop(self, "max_instance")
 
-def SketchupLog(*args, popup=False):
+def sketchupLog(*args):
     if len(args) > 0:
-        log(' '.join(['%s'%a for a in args]), module_name='Sketchup', popup=popup)
+        log(' '.join(['%s'%a for a in args]), module_name='Sketchup')
 
 
 class SceneImporter():
@@ -82,7 +85,7 @@ class SceneImporter():
         """load a sketchup file"""
         self.context = context
 
-        SketchupLog('importing skp %r' % self.filepath)
+        sketchupLog('importing skp %r' % self.filepath)
 
         addon_name = __name__.split('.')[0]
         self.prefs = addon_prefs = context.user_preferences.addons[addon_name].preferences
@@ -92,13 +95,13 @@ class SceneImporter():
         try:
             skp_model = sketchup.Model.from_file(self.filepath)
         except Exception as e:
-            SketchupLog('Error reading input file: %s' % self.filepath)
-            SketchupLog(e)
+            sketchupLog('Error reading input file: %s' % self.filepath)
+            sketchupLog(e)
             return {'FINISHED'}
         self.skp_model = skp_model
 
         time_new = time.time()
-        SketchupLog('Done parsing skp %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
+        sketchupLog('Done parsing skp %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
 
 
         if options['import_camera']:
@@ -117,7 +120,7 @@ class SceneImporter():
 
         for mat in materials:
 
-            name = mat.name.decode("UTF-8")
+            name = mat.name
 
             if not name in bpy.data.materials:
                 print(name, mat.color)
@@ -130,22 +133,22 @@ class SceneImporter():
 
 
 
-    def write_mesh_data(self, fs, name):
+    def write_mesh_data(self, fs, name, default_material='Material'):
         verts = []
+        verts_extend = verts.extend
         faces = []
-
+        mat_index = []
+        mats = keep_offset()
         seen = {}
-
-        mat = 'Material'
 
         for f in fs:
             vert_done = len(verts)
             vs, tri = f.triangles
 
             if f.material:
-                mat = f.material.name.decode("UTF-8")
+                mat_number = mats[f.material.name]
             else:
-                mat = 'Material'
+                mat_number = mats[default_material]
 
             new_verts = []
 
@@ -159,27 +162,35 @@ class SceneImporter():
                     not_mapped += 1
                     new_verts.append(v)
 
+
             for face in tri:
                 faces.append((face[0] + vert_done, face[1] + vert_done, face[2] + vert_done ) )
-            verts = verts + new_verts
+                mat_index.append(mat_number)
+            verts_extend(new_verts)
 
         me = bpy.data.meshes.new(name)
-
-        me.materials.append(self.materials[mat])
 
         me.vertices.add(len(verts))
         me.tessfaces.add(len(faces))
 
+        if len(mats) >= 1:
+            mats_sorted = OrderedDict(sorted(mats.items(), key=lambda x: x[1]))
+            for k in mats_sorted.keys():
+                me.materials.append(self.materials[k])
+        else:
+            sketchupLog("WARNING OBJECT {} HAS NO MATERIAL".format(name))
+
         me.vertices.foreach_set("co", unpack_list(verts))
         me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
+        me.tessfaces.foreach_set("material_index", mat_index)
 
         me.update(calc_edges=True)
         me.validate()
         return me, len(verts)
 
-    def write_entities(self, entities, name, parent_tranform):
-        print("Creating object -> {}".format(name))
-        me, v = self.write_mesh_data(entities.faces, name)
+    def write_entities(self, entities, name, parent_tranform, default_material="Material"):
+        print("Creating object -> {} with default mat {}".format(name, default_material))
+        me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
         ob = bpy.data.objects.new(name, me)
         ob.matrix_world = parent_tranform
         me.update(calc_edges=True)
@@ -191,7 +202,11 @@ class SceneImporter():
                             [t[1], t[5],  t[9], t[13]],
                             [t[2], t[6], t[10], t[14]],
                             [t[3], t[7], t[11], t[15]]] )
-            self.write_entities(group.entities, "Group",parent_tranform * trans)
+            mat = group.material
+            mat_name = mat.name if mat else default_material
+            if mat_name == "Material" and default_material != "Material":
+                mat_name = default_material
+            self.write_entities(group.entities, "G#" + group.name, parent_tranform * trans, default_material=mat_name)
 
         for instance in entities.instances:
             t = instance.transform
@@ -199,7 +214,11 @@ class SceneImporter():
                             [t[1], t[5],  t[9], t[13]],
                             [t[2], t[6], t[10], t[14]],
                             [t[3], t[7], t[11], t[15]]] )# * transform
-            self.write_entities(instance.definition.entities, "Component",parent_tranform * trans)
+            mat = instance.name
+            mat_name = mat.name if mat else default_material
+            if mat_name == "Material" and default_material != "Material":
+                mat_name = default_material
+            self.write_entities(instance.definition.entities, "I#" + instance.name ,parent_tranform * trans, default_material=mat_name)
 
         return ob
 
@@ -239,48 +258,19 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         options={'HIDDEN'},
     )
 
-    import_camera = BoolProperty(
-        name="Cameras",
-        description="Import camera's",
-        default=True,
-    )
-
-    import_material = BoolProperty(
-        name="Materials",
-        description="Import materials's",
-        default=True,
-    )
-
-    import_meshes = BoolProperty(
-        name="Meshes",
-        description="Import meshes's",
-        default=True,
-    )
-
-    import_instances = BoolProperty(
-        name="Instances",
-        description="Import instances's",
-        default=True,
-    )
-
-    apply_scale = BoolProperty(
-        name="Apply Scale",
-        description="Apply scale to imported objects",
-        default=True,
-    )
-
-    handle_proxy_group = BoolProperty(
-        name="Proxy",
-        description="Attempt to find groups for meshes names *_proxy*",
-        default=True,
-    )
+    import_camera = BoolProperty(name="Cameras", description="Import camera's", default=True)
+    import_material = BoolProperty(name="Materials", description="Import materials's", default=True)
+    import_meshes = BoolProperty(name="Meshes", description="Import meshes's", default=True)
+    import_instances = BoolProperty(name="Instances", description="Import instances's", default=True)
+    apply_scale = BoolProperty(name="Apply Scale", description="Apply scale to imported objects", default=True)
+    handle_proxy_group = BoolProperty(name="Proxy", description="Attempt to find groups for meshes names *_proxy*",
+                                      default=True,)
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
                                             "filter_glob",
-                                            "split_mode",
-            ))
+                                            "split_mode"))
         return SceneImporter().set_filename(keywords['filepath']).load(context, **keywords)
 
     def draw(self, context):

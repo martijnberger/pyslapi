@@ -9,6 +9,7 @@ from libc.stdlib cimport malloc, free
 from slapi.slapi cimport *
 from slapi.initialize cimport *
 from slapi.defs cimport *
+from slapi.drawing_element cimport *
 from slapi.unicodestring cimport *
 from slapi.entities cimport *
 from slapi.camera cimport *
@@ -91,7 +92,7 @@ cdef StringRef2Py(SUStringRef& suStr):
         out_char_array = <char*>malloc(sizeof(char) * (out_length *2))
         SUStringGetUTF8(suStr, out_length, out_char_array, &out_number_of_chars_copied)
         try:
-            py_result = out_char_array[:out_number_of_chars_copied]
+            py_result = out_char_array[:out_number_of_chars_copied].decode('UTF-8')
         finally:
             free(out_char_array)
         return py_result
@@ -239,8 +240,11 @@ cdef class Instance:
             cdef SUStringRef n
             n.ptr = <void*>0
             SUStringCreate(&n)
-            SUComponentInstanceGetName(self.instance, &n)
-            return StringRef2Py(n)
+            cdef res = SUComponentInstanceGetName(self.instance, &n)
+            if res == SU_ERROR_NONE:
+                return StringRef2Py(n)
+            else:
+                return "NONAME-INSTANCE"
 
     property entity:
         def __get__(self):
@@ -293,6 +297,7 @@ cdef class Component:
             return res
 
 
+
 cdef class Group:
     cdef SUGroupRef group
 
@@ -327,6 +332,19 @@ cdef class Group:
             res = Entities()
             res.set_ptr(entities.ptr)
             return res
+
+    property material:
+        def __get__(self):
+            cdef SUDrawingElementRef draw_elem = SUGroupToDrawingElement(self.group)
+            cdef SUMaterialRef mat
+            mat.ptr = <void*> 0
+            cdef SU_RESULT res = SUDrawingElementGetMaterial(draw_elem, &mat)
+            if res == SU_ERROR_NONE:
+                m = Material()
+                m.material.ptr = mat.ptr
+                return m
+            else:
+                return None
 
     def __repr__(self):
         return "Group {} \n\ttransform {}".format(self.name, self.transform)
