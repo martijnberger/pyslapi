@@ -275,6 +275,20 @@ cdef class Instance:
             res.append(transform.values[15])
             return res
 
+
+    property material:
+        def __get__(self):
+            cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
+            cdef SUMaterialRef mat
+            mat.ptr = <void*> 0
+            cdef SU_RESULT res = SUDrawingElementGetMaterial(draw_elem, &mat)
+            if res == SU_ERROR_NONE:
+                m = Material()
+                m.material.ptr = mat.ptr
+                return m
+            else:
+                return None
+
 cdef instance_from_ptr(SUComponentInstanceRef r):
     res = Instance()
     res.instance.ptr = r.ptr

@@ -130,6 +130,8 @@ class SceneImporter():
                 bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
                 bmat.use_nodes = True
                 self.materials[name] = bmat
+            else:
+                self.materials[name] = bpy.data.materials[name]
 
 
 
@@ -168,6 +170,9 @@ class SceneImporter():
                 mat_index.append(mat_number)
             verts_extend(new_verts)
 
+        if len(verts) == 0:
+            return None, 0
+
         me = bpy.data.meshes.new(name)
 
         me.vertices.add(len(verts))
@@ -191,10 +196,11 @@ class SceneImporter():
     def write_entities(self, entities, name, parent_tranform, default_material="Material"):
         print("Creating object -> {} with default mat {}".format(name, default_material))
         me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
-        ob = bpy.data.objects.new(name, me)
-        ob.matrix_world = parent_tranform
-        me.update(calc_edges=True)
-        self.context.scene.objects.link(ob)
+        if me:
+            ob = bpy.data.objects.new(name, me)
+            ob.matrix_world = parent_tranform
+            me.update(calc_edges=True)
+            self.context.scene.objects.link(ob)
 
         for group in entities.groups:
             t = group.transform
@@ -206,7 +212,8 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            self.write_entities(group.entities, "G#" + group.name, parent_tranform * trans, default_material=mat_name)
+            print("recurse with mat_name {}".format(mat_name))
+            self.write_entities(group.entities, " G-" + group.name, parent_tranform * trans, default_material=mat_name)
 
         for instance in entities.instances:
             t = instance.transform
@@ -214,13 +221,14 @@ class SceneImporter():
                             [t[1], t[5],  t[9], t[13]],
                             [t[2], t[6], t[10], t[14]],
                             [t[3], t[7], t[11], t[15]]] )# * transform
-            mat = instance.name
+            mat = instance.material
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            self.write_entities(instance.definition.entities, "I#" + instance.name ,parent_tranform * trans, default_material=mat_name)
+            print("recurse with mat_name {}".format(mat_name))
+            self.write_entities(instance.definition.entities, " I-" + instance.name ,parent_tranform * trans, default_material=mat_name)
 
-        return ob
+        return
 
 
 
