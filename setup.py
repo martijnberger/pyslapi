@@ -18,8 +18,8 @@ elif platform.system() == 'Darwin': # OS x
     extra_link_args=['-F','.','-framework','slapi']
 else:
     libraries=["slapi"]
-    extra_compile_args=[]
-    extra_link_args=[]
+    extra_compile_args=['/Zp8']
+    extra_link_args=['/LIBPATH:binaries/x64/']
 
 setup(
       name = "Sketchup",
