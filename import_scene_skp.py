@@ -75,6 +75,7 @@ class SceneImporter():
     def __init__(self):
         self.filepath = '/tmp/untitled.skp'
         self.name_mapping = {}
+        self.component_meshes = {}
 
     def set_filename(self, filename):
         self.filepath = filename
@@ -116,17 +117,24 @@ class SceneImporter():
 
 
     def write_materials(self,materials):
-        self.materials = {'Material': bpy.data.materials['Material']}
+
+        self.materials = {}
+        if 'Material' in bpy.data.materials:
+            self.materials['Material'] = bpy.data.materials['Material']
+        else:
+            bmat = bpy.data.materials.new('Material')
+            bmat.diffuse_color = (.8, .8, .8)
+            bmat.use_nodes = True
+            self.materials['Material'] = bmat
+
 
         for mat in materials:
 
             name = mat.name
 
             if not name in bpy.data.materials:
-                print(name, mat.color)
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
-                print(r,g,b)
                 bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
                 bmat.use_nodes = True
                 self.materials[name] = bmat
@@ -193,9 +201,17 @@ class SceneImporter():
         me.validate()
         return me, len(verts)
 
-    def write_entities(self, entities, name, parent_tranform, default_material="Material"):
+    def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
         print("Creating object -> {} with default mat {}".format(name, default_material))
-        me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
+        if type=="Component":
+            if (name,default_material) in self.component_meshes:
+                me = self.component_meshes[(name,default_material)]
+            else:
+                me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
+                self.component_meshes[(name,default_material)] = me
+        else:
+            me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
+
         if me:
             ob = bpy.data.objects.new(name, me)
             ob.matrix_world = parent_tranform
@@ -212,8 +228,7 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            print("recurse with mat_name {}".format(mat_name))
-            self.write_entities(group.entities, " G-" + group.name, parent_tranform * trans, default_material=mat_name)
+            self.write_entities(group.entities, "G-" + group.name, parent_tranform * trans, default_material=mat_name)
 
         for instance in entities.instances:
             t = instance.transform
@@ -225,8 +240,7 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            print("recurse with mat_name {}".format(mat_name))
-            self.write_entities(instance.definition.entities, " I-" + instance.name ,parent_tranform * trans, default_material=mat_name)
+            self.write_entities(instance.definition.entities, instance.definition.name ,parent_tranform * trans, default_material=mat_name, type="Component")
 
         return
 

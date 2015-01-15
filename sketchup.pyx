@@ -310,6 +310,15 @@ cdef class Component:
             res.set_ptr(e.ptr)
             return res
 
+    property name:
+        def __get__(self):
+            cdef SUStringRef n
+            n.ptr = <void*>0
+            SUStringCreate(&n)
+            check_result(SUComponentDefinitionGetName(self.comp_def, &n))
+            return StringRef2Py(n)
+
+
 
 
 cdef class Group:
