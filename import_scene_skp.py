@@ -31,6 +31,7 @@ import os
 import time
 import sketchup
 import mathutils
+import tempfile
 from collections import OrderedDict, defaultdict
 from mathutils import Matrix, Vector
 from bpy.types import Operator, AddonPreferences
@@ -135,8 +136,20 @@ class SceneImporter():
             if not name in bpy.data.materials:
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
+                tex = mat.texture
                 bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
                 bmat.use_nodes = True
+                if tex:
+                    tmp_name = tempfile.gettempdir() + os.pathsep + tex.name
+                    print(tmp_name)
+                    tex.write(tmp_name)
+                    img = bpy.data.images.load(tmp_name)
+                    img.pack()
+                    os.remove(tmp_name)
+                    n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
+                    n.image = img
+                    bmat.node_tree.links.new(n.outputs['Color'], bmat.node_tree.nodes['Diffuse BSDF'].inputs['Color'] )
+
                 self.materials[name] = bmat
             else:
                 self.materials[name] = bpy.data.materials[name]

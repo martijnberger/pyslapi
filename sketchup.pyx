@@ -225,6 +225,31 @@ cdef class Camera:
 
 
 
+cdef class Texture:
+    cdef SUTextureRef tex_ref
+
+    def __cinit__(self):
+        self.tex_ref.ptr = <void *> 0
+
+    def __dealloc__(self):
+        pass
+
+    def write(self, filename):
+        py_byte_string = filename.encode('UTF-8')
+        cdef const char* file_path = py_byte_string
+        check_result(SUTextureWriteToFile(self.tex_ref, file_path))
+
+    property name:
+        def __get__(self):
+            cdef SUStringRef n
+            n.ptr = <void*>0
+            SUStringCreate(&n)
+            cdef res = SUTextureGetFileName(self.tex_ref, &n)
+            if res == SU_ERROR_NONE:
+                return StringRef2Py(n)
+            return ""
+
+
 cdef class Instance:
     cdef SUComponentInstanceRef instance
 
@@ -557,6 +582,17 @@ cdef class Material:
         def __set__(self,double alpha):
             check_result(SUMaterialSetOpacity(self.material, alpha))
 
+    property texture:
+        def __get__(self):
+            cdef SUTextureRef t
+            t.ptr = <void*>0
+            cdef SU_RESULT res = SUMaterialGetTexture(self.material,  &t)
+            if res == SU_ERROR_NONE:
+                tex = Texture()
+                tex.tex_ref.ptr = t.ptr
+                return tex
+            else:
+                return False
 
 cdef class Model:
     cdef SUModelRef model
