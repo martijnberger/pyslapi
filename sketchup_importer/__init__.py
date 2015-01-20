@@ -29,7 +29,7 @@ bl_info = {
 import bpy
 import os
 import time
-import sketchup
+from . import sketchup
 import mathutils
 import tempfile
 from collections import OrderedDict, defaultdict
@@ -53,7 +53,7 @@ class keep_offset(defaultdict):
         return number
 
 class SketchupAddonPreferences(AddonPreferences):
-    bl_idname = "import_scene_skp"
+    bl_idname = __name__
 
     camera_far_plane = IntProperty(name="Default Camera Distance", default=1250)
     draw_bounds = IntProperty(name="Draw object as bounds when over", default=5000)
@@ -137,6 +137,8 @@ class SceneImporter():
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
                 tex = mat.texture
+                if a < 255:
+                    bmat.alpha = a / 256.0
                 bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
                 bmat.use_nodes = True
                 if tex:
@@ -163,6 +165,7 @@ class SceneImporter():
         mat_index = []
         mats = keep_offset()
         seen = {}
+        alpha = False
 
         for f in fs:
             vert_done = len(verts)
@@ -192,7 +195,7 @@ class SceneImporter():
             verts_extend(new_verts)
 
         if len(verts) == 0:
-            return None, 0
+            return None, 0, False
 
         me = bpy.data.meshes.new(name)
 
@@ -202,7 +205,10 @@ class SceneImporter():
         if len(mats) >= 1:
             mats_sorted = OrderedDict(sorted(mats.items(), key=lambda x: x[1]))
             for k in mats_sorted.keys():
-                me.materials.append(self.materials[k])
+                bmat = self.materials[k]
+                me.materials.append(bmat)
+                if bmat.alpha < 1.0:
+                    alpha = True
         else:
             sketchupLog("WARNING OBJECT {} HAS NO MATERIAL".format(name))
 
@@ -212,22 +218,24 @@ class SceneImporter():
 
         me.update(calc_edges=True)
         me.validate()
-        return me, len(verts)
+        return me, len(verts), alpha
 
     def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
         print("Creating object -> {} with default mat {}".format(name, default_material))
         if type=="Component":
             if (name,default_material) in self.component_meshes:
-                me = self.component_meshes[(name,default_material)]
+                me, alpha = self.component_meshes[(name,default_material)]
             else:
-                me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
-                self.component_meshes[(name,default_material)] = me
+                me, v, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
+                self.component_meshes[(name,default_material)] = (me, alpha)
         else:
-            me, v = self.write_mesh_data(entities.faces, name, default_material=default_material)
+            me, v, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
             ob.matrix_world = parent_tranform
+            if alpha:
+                ob.show_transparent = True
             me.update(calc_edges=True)
             self.context.scene.objects.link(ob)
 
@@ -327,9 +335,9 @@ def menu_func_import(self, context):
 
 # Registration
 def register():
+    bpy.utils.register_class(SketchupAddonPreferences)
     bpy.utils.register_class(ImportSKP)
     bpy.types.INFO_MT_file_import.append(menu_func_import)
-    bpy.utils.register_class(SketchupAddonPreferences)
 
 
 def unregister():
