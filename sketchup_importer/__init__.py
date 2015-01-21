@@ -86,6 +86,7 @@ class SceneImporter():
     def load(self, context, **options):
         """load a sketchup file"""
         self.context = context
+        self.reuse_material = options['reuse_material']
 
         sketchupLog('importing skp %r' % self.filepath)
 
@@ -118,9 +119,11 @@ class SceneImporter():
 
 
     def write_materials(self,materials):
+        if self.context.scene.render.engine != 'CYCLES':
+            self.context.scene.render.engine = 'CYCLES'
 
         self.materials = {}
-        if 'Material' in bpy.data.materials:
+        if self.reuse_material and 'Material' in bpy.data.materials:
             self.materials['Material'] = bpy.data.materials['Material']
         else:
             bmat = bpy.data.materials.new('Material')
@@ -133,7 +136,7 @@ class SceneImporter():
 
             name = mat.name
 
-            if not name in bpy.data.materials:
+            if self.reuse_material and not name in bpy.data.materials:
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
                 tex = mat.texture
@@ -273,9 +276,10 @@ class SceneImporter():
         pos, target, up = camera.GetOrientation()
         bpy.ops.object.add(type='CAMERA', location=pos)
         ob = self.context.object
+
         z = (mathutils.Vector(pos) - mathutils.Vector(target)).normalized()
-        x = mathutils.Vector(up).cross(z).normalized()
-        y = x.cross(z)
+        x = z.cross(mathutils.Vector(up)).normalized()
+        y = z.cross(x)
 
         ob.matrix_world.col[0] = x.resized(4)
         ob.matrix_world.col[1] = y.resized(4)
@@ -302,7 +306,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
     )
 
     import_camera = BoolProperty(name="Cameras", description="Import camera's", default=True)
-    import_material = BoolProperty(name="Materials", description="Import materials's", default=True)
+    reuse_material = BoolProperty(name="Materials", description="Reuse scene materials", default=True)
     import_meshes = BoolProperty(name="Meshes", description="Import meshes's", default=True)
     import_instances = BoolProperty(name="Instances", description="Import instances's", default=True)
     apply_scale = BoolProperty(name="Apply Scale", description="Apply scale to imported objects", default=True)
@@ -321,7 +325,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
 
         row = layout.row(align=True)
         row.prop(self, "import_camera")
-        row.prop(self, "import_material")
+        row.prop(self, "reuse_material")
         row = layout.row(align=True)
         row.prop(self, "import_meshes")
         row.prop(self, "import_instances")
