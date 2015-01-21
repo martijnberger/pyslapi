@@ -164,6 +164,7 @@ class SceneImporter():
     def write_mesh_data(self, fs, name, default_material='Material'):
         verts = []
         verts_extend = verts.extend
+        uv_list = []
         faces = []
         mat_index = []
         mats = keep_offset()
@@ -172,7 +173,7 @@ class SceneImporter():
 
         for f in fs:
             vert_done = len(verts)
-            vs, tri = f.triangles
+            vs, tri, uvs = f.triangles
 
             if f.material:
                 mat_number = mats[f.material.name]
@@ -183,7 +184,7 @@ class SceneImporter():
 
             mapping = {}
             not_mapped = vert_done
-            for i, v in enumerate(vs):
+            for i, (v, uv) in enumerate(zip(vs, uvs)):
                 if v in seen:
                     mapping[i] = seen[v]
                 else:
@@ -192,10 +193,25 @@ class SceneImporter():
                     new_verts.append(v)
 
 
+
             for face in tri:
-                faces.append((face[0] + vert_done, face[1] + vert_done, face[2] + vert_done ) )
+                if face[2] == 0: ## eeekadoodle dance
+                    faces.append( (face[1] + vert_done, face[2] + vert_done, face[0] + vert_done) )
+                    zero_face_start = True
+                    uv_list.append(( uvs[face[1]][0], uvs[face[1]][1],
+                                     uvs[face[2]][0], uvs[face[2]][1],
+                                     uvs[face[0]][0], uvs[face[0]][1],
+                                     0, 0 ) )
+                else:
+                    faces.append((face[0] + vert_done, face[1] + vert_done, face[2] + vert_done ) )
+                    zero_face_start = False
+                    uv_list.append(( uvs[face[0]][0], uvs[face[0]][1],
+                                     uvs[face[1]][0], uvs[face[1]][1],
+                                     uvs[face[2]][0], uvs[face[2]][1],
+                                     0, 0 ) )
                 mat_index.append(mat_number)
             verts_extend(new_verts)
+
 
         if len(verts) == 0:
             return None, 0, False
@@ -218,6 +234,11 @@ class SceneImporter():
         me.vertices.foreach_set("co", unpack_list(verts))
         me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
         me.tessfaces.foreach_set("material_index", mat_index)
+
+        me.tessface_uv_textures.new()
+        for i in range(len(faces)):
+            print(i, uv_list[i])
+            me.tessface_uv_textures[0].data[i].uv_raw = uv_list[i]
 
         me.update(calc_edges=True)
         me.validate()

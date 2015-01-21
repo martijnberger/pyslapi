@@ -433,18 +433,26 @@ cdef class Face:
             cdef size_t got_vertex_count = 0
             cdef SUPoint3D* vertices = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
             check_result(SUMeshHelperGetVertices(mesh_ref, vertex_count, vertices, &got_vertex_count))
-            #SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+
+            cdef SUPoint3D* stq = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
+            cdef size_t got_stq_count = 0
+            check_result(SUMeshHelperGetFrontSTQCoords(mesh_ref, vertex_count, stq, &got_stq_count))
             #SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
             #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
             vertices_list = []
+            uv_list = []
             for i in range(got_vertex_count):
                 vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
+            for i in range(got_stq_count):
+                uv_list.append((stq[i].x, stq[i].y))
             triangles_list = []
             for ii in range(index_count / 3):
                 i = ii * 3
                 triangles_list.append( (indices[i], indices[i+1], indices[i+2]) )
-
-            return (vertices_list, triangles_list)
+            free(vertices)
+            free(stq)
+            free(indices)
+            return (vertices_list, triangles_list, uv_list)
 
     property material:
         def __get__(self):
