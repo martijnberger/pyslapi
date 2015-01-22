@@ -145,7 +145,8 @@ class SceneImporter():
                 bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
                 bmat.use_nodes = True
                 if tex:
-                    tmp_name = tempfile.gettempdir() + os.pathsep + tex.name
+                    tex_name = tex.name.split("\\")[-1]
+                    tmp_name = tempfile.gettempdir() + os.pathsep + tex_name
                     print(tmp_name)
                     tex.write(tmp_name)
                     img = bpy.data.images.load(tmp_name)
