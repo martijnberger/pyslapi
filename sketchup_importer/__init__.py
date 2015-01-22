@@ -164,16 +164,16 @@ class SceneImporter():
 
     def write_mesh_data(self, fs, name, default_material='Material'):
         verts = []
-        verts_extend = verts.extend
-        uv_list = []
         faces = []
         mat_index = []
         mats = keep_offset()
-        seen = {}
+        seen = keep_offset()
+        uv_list = []
         alpha = False
 
+
+
         for f in fs:
-            vert_done = len(verts)
             vs, tri, uvs = f.triangles
 
             if f.material:
@@ -181,37 +181,32 @@ class SceneImporter():
             else:
                 mat_number = mats[default_material]
 
-            new_verts = []
 
             mapping = {}
-            not_mapped = vert_done
             for i, (v, uv) in enumerate(zip(vs, uvs)):
-                if v in seen:
-                    mapping[i] = seen[v]
-                else:
-                    mapping[i] = not_mapped
-                    not_mapped += 1
-                    new_verts.append(v)
+                l = len(seen)
+                mapping[i] = seen[v]
+                if len(seen) > l:
+                    verts.append(v)
+                uvs.append(uv)
 
 
 
             for face in tri:
+                f0, f1, f2 = face[0], face[1], face[2]
                 if face[2] == 0: ## eeekadoodle dance
-                    faces.append( (face[1] + vert_done, face[2] + vert_done, face[0] + vert_done) )
-                    zero_face_start = True
+                    faces.append( ( mapping[f1], mapping[f2], mapping[f0] ) )
                     uv_list.append(( uvs[face[1]][0], uvs[face[1]][1],
                                      uvs[face[2]][0], uvs[face[2]][1],
                                      uvs[face[0]][0], uvs[face[0]][1],
                                      0, 0 ) )
                 else:
-                    faces.append((face[0] + vert_done, face[1] + vert_done, face[2] + vert_done ) )
-                    zero_face_start = False
+                    faces.append( ( mapping[f0], mapping[f1], mapping[f2] ) )
                     uv_list.append(( uvs[face[0]][0], uvs[face[0]][1],
                                      uvs[face[1]][0], uvs[face[1]][1],
                                      uvs[face[2]][0], uvs[face[2]][1],
                                      0, 0 ) )
                 mat_index.append(mat_number)
-            verts_extend(new_verts)
 
 
         if len(verts) == 0:
@@ -238,7 +233,6 @@ class SceneImporter():
 
         me.tessface_uv_textures.new()
         for i in range(len(faces)):
-            print(i, uv_list[i])
             me.tessface_uv_textures[0].data[i].uv_raw = uv_list[i]
 
         me.update(calc_edges=True)
@@ -328,12 +322,8 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
     )
 
     import_camera = BoolProperty(name="Cameras", description="Import camera's", default=True)
-    reuse_material = BoolProperty(name="Materials", description="Reuse scene materials", default=True)
-    import_meshes = BoolProperty(name="Meshes", description="Import meshes's", default=True)
-    import_instances = BoolProperty(name="Instances", description="Import instances's", default=True)
-    apply_scale = BoolProperty(name="Apply Scale", description="Apply scale to imported objects", default=True)
-    handle_proxy_group = BoolProperty(name="Proxy", description="Attempt to find groups for meshes names *_proxy*",
-                                      default=True,)
+    reuse_material = BoolProperty(name="Use Existing Materials", description="Reuse scene materials", default=True)
+
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -348,12 +338,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row = layout.row(align=True)
         row.prop(self, "import_camera")
         row.prop(self, "reuse_material")
-        row = layout.row(align=True)
-        row.prop(self, "import_meshes")
-        row.prop(self, "import_instances")
-        row = layout.row(align=True)
-        row.prop(self, "handle_proxy_group")
-        row.prop(self, "apply_scale")
+
 
 def menu_func_import(self, context):
     self.layout.operator(ImportSKP.bl_idname, text="Import Sketchup Scene(.skp)")
