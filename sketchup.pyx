@@ -290,15 +290,12 @@ cdef class Instance:
 
     property transform:
         def __get__(self):
-            cdef SUTransformation transform
-            check_result(SUComponentInstanceGetTransform(self.instance, &transform))
-            res = []
-            for i in range(12):
-                res.append(transform.values[i])
-            for i in range(12,15,1):
-                res.append(m(transform.values[i]))
-            res.append(transform.values[15])
-            return res
+            cdef SUTransformation t
+            check_result(SUComponentInstanceGetTransform(self.instance, &t))
+            return [[t.values[0], t.values[4], t.values[8],  m(t.values[12])],
+                    [t.values[1], t.values[5], t.values[9],  m(t.values[13])],
+                    [t.values[2], t.values[6], t.values[10], m(t.values[14])],
+                    [t.values[3], t.values[7], t.values[11],   t.values[15]]] # * transform
 
 
     property material:
@@ -362,15 +359,12 @@ cdef class Group:
 
     property transform:
         def __get__(self):
-            cdef SUTransformation transform
-            check_result(SUGroupGetTransform(self.group, &transform))
-            res = []
-            for i in range(12):
-                res.append(transform.values[i])
-            for i in range(12,15,1):
-                res.append(m(transform.values[i]))
-            res.append(transform.values[15])
-            return res
+            cdef SUTransformation t
+            check_result(SUGroupGetTransform(self.group, &t))
+            return [[t.values[0], t.values[4], t.values[8],  m(t.values[12])],
+                    [t.values[1], t.values[5], t.values[9],  m(t.values[13])],
+                    [t.values[2], t.values[6], t.values[10], m(t.values[14])],
+                    [t.values[3], t.values[7], t.values[11],   t.values[15]]] # * transform
 
     property entities:
         def __get__(self):

@@ -103,18 +103,21 @@ class SceneImporter():
             return {'FINISHED'}
         self.skp_model = skp_model
 
-        time_new = time.time()
-        sketchupLog('Done parsing skp %r in %.4f sec.' % (self.filepath, (time_new - time_main)))
-
+        sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
         if options['import_camera']:
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
+        t1 = time.time()
         self.write_materials(skp_model.materials)
+        sketchupLog('imported materials in %.4f sec' % (time.time() - t1))
 
+        t1 = time.time()
         self.write_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
+        sketchupLog('imported entities in %.4f sec' % (time.time() - t1))
 
+        sketchupLog('finished importing %s in %.4f sec '% (self.filepath, time.time() - time_main))
         return {'FINISHED'}
 
 
@@ -147,7 +150,7 @@ class SceneImporter():
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
                     tmp_name = tempfile.gettempdir() + os.pathsep + tex_name
-                    print(tmp_name)
+                    #sketchupLog("Texture saved temporarily as {}".format(tmp_name))
                     tex.write(tmp_name)
                     img = bpy.data.images.load(tmp_name)
                     img.pack()
@@ -169,8 +172,8 @@ class SceneImporter():
         mats = keep_offset()
         seen = keep_offset()
         uv_list = []
-        alpha = False
-
+        alpha = False # We assume object does not need alpha flag
+        uvs_used = False # We assume no uvs need to be added
 
 
         for f in fs:
@@ -191,26 +194,25 @@ class SceneImporter():
                 uvs.append(uv)
 
 
-
             for face in tri:
                 f0, f1, f2 = face[0], face[1], face[2]
-                if face[2] == 0: ## eeekadoodle dance
+                if f2 == 0: ## eeekadoodle dance
                     faces.append( ( mapping[f1], mapping[f2], mapping[f0] ) )
-                    uv_list.append(( uvs[face[1]][0], uvs[face[1]][1],
-                                     uvs[face[2]][0], uvs[face[2]][1],
-                                     uvs[face[0]][0], uvs[face[0]][1],
+                    uv_list.append(( uvs[f2][0], uvs[f2][1],
+                                     uvs[f1][0], uvs[f1][1],
+                                     uvs[f0][0], uvs[f0][1],
                                      0, 0 ) )
                 else:
                     faces.append( ( mapping[f0], mapping[f1], mapping[f2] ) )
-                    uv_list.append(( uvs[face[0]][0], uvs[face[0]][1],
-                                     uvs[face[1]][0], uvs[face[1]][1],
-                                     uvs[face[2]][0], uvs[face[2]][1],
+                    uv_list.append(( uvs[f0][0], uvs[f0][1],
+                                     uvs[f1][0], uvs[f1][1],
+                                     uvs[f2][0], uvs[f2][1],
                                      0, 0 ) )
                 mat_index.append(mat_number)
 
 
         if len(verts) == 0:
-            return None, 0, False
+            return None, False
 
         me = bpy.data.meshes.new(name)
 
@@ -224,6 +226,8 @@ class SceneImporter():
                 me.materials.append(bmat)
                 if bmat.alpha < 1.0:
                     alpha = True
+                if 'Image Texture' in bmat.node_tree.nodes.keys():
+                    uvs_used = True
         else:
             sketchupLog("WARNING OBJECT {} HAS NO MATERIAL".format(name))
 
@@ -231,24 +235,25 @@ class SceneImporter():
         me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
         me.tessfaces.foreach_set("material_index", mat_index)
 
-        me.tessface_uv_textures.new()
-        for i in range(len(faces)):
-            me.tessface_uv_textures[0].data[i].uv_raw = uv_list[i]
+        if uvs_used:
+            me.tessface_uv_textures.new()
+            for i in range(len(faces)):
+                me.tessface_uv_textures[0].data[i].uv_raw = uv_list[i]
 
         me.update(calc_edges=True)
         me.validate()
-        return me, len(verts), alpha
+        return me, alpha
 
     def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
-        print("Creating object -> {} with default mat {}".format(name, default_material))
+        #sketchupLog("Creating object -> {} with default mat {}".format(name, default_material))
         if type=="Component":
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
             else:
-                me, v, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
+                me, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
                 self.component_meshes[(name,default_material)] = (me, alpha)
         else:
-            me, v, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
+            me, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
@@ -259,11 +264,7 @@ class SceneImporter():
             self.context.scene.objects.link(ob)
 
         for group in entities.groups:
-            t = group.transform
-            trans = Matrix([[t[0], t[4],  t[8], t[12]],
-                            [t[1], t[5],  t[9], t[13]],
-                            [t[2], t[6], t[10], t[14]],
-                            [t[3], t[7], t[11], t[15]]] )
+            trans = Matrix(group.transform)
             mat = group.material
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
@@ -271,11 +272,7 @@ class SceneImporter():
             self.write_entities(group.entities, "G-" + group.name, parent_tranform * trans, default_material=mat_name)
 
         for instance in entities.instances:
-            t = instance.transform
-            trans = Matrix([[t[0], t[4],  t[8], t[12]],
-                            [t[1], t[5],  t[9], t[13]],
-                            [t[2], t[6], t[10], t[14]],
-                            [t[3], t[7], t[11], t[15]]] )# * transform
+            trans = Matrix(instance.transform)
             mat = instance.material
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
@@ -283,10 +280,6 @@ class SceneImporter():
             self.write_entities(instance.definition.entities, instance.definition.name ,parent_tranform * trans, default_material=mat_name, type="Component")
 
         return
-
-
-
-
 
     def write_camera(self, camera):
         pos, target, up = camera.GetOrientation()
