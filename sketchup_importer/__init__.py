@@ -89,6 +89,7 @@ class SceneImporter():
         self.reuse_material = options['reuse_material']
         self.component_stats = defaultdict(list)
         self.component_skip = {}
+        self.group_written ={}
 
         sketchupLog('importing skp %r' % self.filepath)
 
@@ -350,6 +351,10 @@ class SceneImporter():
 
     def write_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
         print("Write group {}".format(group.name))
+        if (name, default_material) in self.group_written:
+            return
+        else:
+            self.group_written[(name, default_material)] = True
         if type=="Component":
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
@@ -359,7 +364,7 @@ class SceneImporter():
         else:
             me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
 
-
+        ob = None
         if me:
             ob = bpy.data.objects.new(name, me)
             ob.matrix_world = parent_tranform
@@ -399,6 +404,34 @@ class SceneImporter():
                                 default_material=mat_name,
                                 type="Component",
                                 group=group)
+
+
+        verts = []
+        try:
+            for c in self.component_stats[(name, default_material)]:
+                verts.append( c.col[3][0:3] )
+        except KeyError as e:
+            for c in self.component_stats[(name[:-6], default_material)]:
+                verts.append( c.col[3][0:3] )
+        dme = bpy.data.meshes.new('DUPLI_' + name)
+        dme.vertices.add(len(verts))
+        dme.vertices.foreach_set("co", unpack_list(verts))
+        dme.update(calc_edges=True) # Update mesh with new data
+        dme.validate()
+        dob = bpy.data.objects.new("DUPLI_" + name, dme)
+        dob.dupli_type = 'VERTS'
+        self.context.scene.objects.link(dob)
+        if ob:
+            ob.parent=dob
+        else:
+            if name.lower().endswith("_proxy"):
+                name = name[:-6] # lets instance the real thing
+            ob = bpy.data.objects.new(name=name, object_data=None)
+            self.context.scene.objects.link(ob)
+            ob.dupli_type = 'GROUP'
+            group_name = "{}_{}".format(name,default_material)
+            ob.dupli_group = bpy.data.groups[group_name]
+            sketchupLog("Complex group {} {} imported".format(name, default_material))
 
         return
 
