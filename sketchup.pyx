@@ -33,6 +33,24 @@ cdef extern from "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
 
 
+
+
+cdef class defaultdict(dict):
+    default_factory = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
+
+
+class keep_offset(defaultdict):
+    def __init__(self):
+        defaultdict.__init__(self, int)
+
+    def __missing__(self, _):
+        return defaultdict.__len__(self)
+
+    def __getitem__(self, item):
+        number = defaultdict.__getitem__(self, item)
+        self[item] = number
+        return number
+
 cdef double m(double v):
     """
     :param v: value to be converted from inches to meters
@@ -219,7 +237,10 @@ cdef class Camera:
     property fov:
         def __get__(self):
             cdef double fov
-            check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
+            try:
+                check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
+            except IOError as e:
+                fov = 55
             return fov
 
 
@@ -448,6 +469,7 @@ cdef class Face:
             free(indices)
             return (vertices_list, triangles_list, uv_list)
 
+
     property material:
         def __get__(self):
             cdef SUMaterialRef mat
@@ -530,6 +552,52 @@ cdef class Entities:
                 yield face_from_ptr(faces[i])
             #free(faces)
 
+    def get__triangles_lists(self, default_material):
+        verts = []
+        faces = []
+        mat_index = []
+        mats = keep_offset()
+        seen = keep_offset()
+        uv_list = []
+        alpha = False # We assume object does not need alpha flag
+        uvs_used = False # We assume no uvs need to be added
+
+
+        for f in self.faces:
+            vs, tri, uvs = f.triangles
+
+            if f.material:
+                mat_number = mats[f.material.name]
+            else:
+                mat_number = mats[default_material]
+
+
+            mapping = {}
+            for i, (v, uv) in enumerate(zip(vs, uvs)):
+                l = len(seen)
+                mapping[i] = seen[v]
+                if len(seen) > l:
+                    verts.append(v)
+                uvs.append(uv)
+
+
+            for face in tri:
+                f0, f1, f2 = face[0], face[1], face[2]
+                if f2 == 0: ## eeekadoodle dance
+                    faces.append( ( mapping[f1], mapping[f2], mapping[f0] ) )
+                    uv_list.append(( uvs[f2][0], uvs[f2][1],
+                                     uvs[f1][0], uvs[f1][1],
+                                     uvs[f0][0], uvs[f0][1],
+                                     0, 0 ) )
+                else:
+                    faces.append( ( mapping[f0], mapping[f1], mapping[f2] ) )
+                    uv_list.append(( uvs[f0][0], uvs[f0][1],
+                                     uvs[f1][0], uvs[f1][1],
+                                     uvs[f2][0], uvs[f2][1],
+                                     0, 0 ) )
+                mat_index.append(mat_number)
+        return verts, faces, uv_list, mat_index, mats
+
     property groups:
         def __get__(self):
             cdef size_t num_groups = 0
@@ -595,6 +663,12 @@ cdef class Material:
                 return tex
             else:
                 return False
+
+cdef class Scene:
+    cdef SUSceneRef scene
+
+    def __cinit__(self):
+        self.scene.ptr = <void *> 0
 
 cdef class Model:
     cdef SUModelRef model
@@ -673,6 +747,34 @@ cdef class Model:
                 m.material.ptr = materials[i].ptr
                 yield m
             free(materials)
+
+    property component_definitions:
+        def __get__(self):
+            cdef size_t num_component_defs = 0
+            check_result(SUModelGetNumComponentDefinitions(self.model, &num_component_defs))
+            cdef SUComponentDefinitionRef* components = <SUComponentDefinitionRef*>malloc(sizeof(SUComponentDefinitionRef) * num_component_defs)
+            cdef size_t count = 0
+            check_result(SUModelGetComponentDefinitions(self.model, num_component_defs, components, &count))
+            for i in range(count):
+                c = Component()
+                c.comp_def.ptr = components[i].ptr
+                yield c
+            free(components)
+
+    property scene:
+        def __get__(self):
+            cdef size_t num_scenes = 0
+            check_result(SUModelGetNumScenes(self.model, &num_scenes))
+            cdef SUSceneRef* scenes = <SUSceneRef*>malloc(sizeof(SUSceneRef) * num_scenes)
+            cdef size_t count = 0
+            check_result(SUModelGetScenes(self.model, num_scenes, scenes, &count))
+            for i in range(count):
+                s = Scene()
+                s.scene.ptr = scenes[i].ptr
+                yield s
+            free(scenes)
+
+
 
 
 

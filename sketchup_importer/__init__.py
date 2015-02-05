@@ -87,6 +87,8 @@ class SceneImporter():
         """load a sketchup file"""
         self.context = context
         self.reuse_material = options['reuse_material']
+        self.component_stats = defaultdict(list)
+        self.component_skip = {}
 
         sketchupLog('importing skp %r' % self.filepath)
 
@@ -114,6 +116,16 @@ class SceneImporter():
         sketchupLog('imported materials in %.4f sec' % (time.time() - t1))
 
         t1 = time.time()
+        self.analyze_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
+
+
+        instance_when_over = self.prefs.max_instance
+
+        self.component_stats = { k : v for k,v in self.component_stats.items() if len(v) >= instance_when_over }
+        for k, v in self.component_stats.items():
+            print(k, len(v))
+
+
         self.write_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
         sketchupLog('imported entities in %.4f sec' % (time.time() - t1))
 
@@ -165,7 +177,7 @@ class SceneImporter():
 
 
 
-    def write_mesh_data(self, fs, name, default_material='Material'):
+    def write_mesh_data(self, entities, name, default_material='Material'):
         verts = []
         faces = []
         mat_index = []
@@ -176,7 +188,7 @@ class SceneImporter():
         uvs_used = False # We assume no uvs need to be added
 
 
-        for f in fs:
+        for f in entities.faces:
             vs, tri, uvs = f.triangles
 
             if f.material:
@@ -210,6 +222,7 @@ class SceneImporter():
                                      0, 0 ) )
                 mat_index.append(mat_number)
 
+        # verts, faces, uv_list, mat_index, mats = entities.get__triangles_lists(default_material)
 
         if len(verts) == 0:
             return None, False
@@ -244,16 +257,54 @@ class SceneImporter():
         me.validate()
         return me, alpha
 
-    def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
-        #sketchupLog("Creating object -> {} with default mat {}".format(name, default_material))
+    def analyze_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
         if type=="Component":
+            if name.lower().endswith("_proxy"):
+                name = name[:-6] # lets instance the real thing
+            self.component_stats[(name,default_material)].append(parent_tranform)
+
+        for group in entities.groups:
+            trans = Matrix(group.transform)
+            mat = group.material
+            mat_name = mat.name if mat else default_material
+            if mat_name == "Material" and default_material != "Material":
+                mat_name = default_material
+            self.analyze_entities(group.entities,
+                                  "G-" + group.name,
+                                  parent_tranform * trans,
+                                  default_material=mat_name,
+                                  type="Group")
+
+        for instance in entities.instances:
+            trans = Matrix(instance.transform)
+            mat = instance.material
+            mat_name = mat.name if mat else default_material
+            if mat_name == "Material" and default_material != "Material":
+                mat_name = default_material
+            self.analyze_entities(instance.definition.entities,
+                                  instance.definition.name,
+                                  parent_tranform * trans,
+                                  default_material=mat_name,
+                                  type="Component")
+
+
+
+    def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
+        if type=="Component":
+            if (name,default_material) in self.component_stats:
+                group_name = "{}_{}".format(name,default_material)
+                group = bpy.data.groups.new(group_name)
+                self.write_group(entities, name, Matrix(), default_material=default_material, type=type, group=group)
+                self.component_skip[(name,default_material)] = True
+
+                return
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
             else:
-                me, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
+                me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
                 self.component_meshes[(name,default_material)] = (me, alpha)
         else:
-            me, alpha = self.write_mesh_data(entities.faces, name, default_material=default_material)
+            me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
@@ -269,7 +320,11 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            self.write_entities(group.entities, "G-" + group.name, parent_tranform * trans, default_material=mat_name)
+            self.write_entities(group.entities,
+                                "G-" + group.name,
+                                parent_tranform * trans,
+                                default_material=mat_name,
+                                type="Group")
 
         for instance in entities.instances:
             trans = Matrix(instance.transform)
@@ -277,7 +332,67 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            self.write_entities(instance.definition.entities, instance.definition.name ,parent_tranform * trans, default_material=mat_name, type="Component")
+            if not (instance.definition.name, mat_name) in self.component_skip:
+                self.write_entities(instance.definition.entities,
+                                    instance.definition.name,
+                                    parent_tranform * trans,
+                                    default_material=mat_name,
+                                    type="Component")
+
+        return
+
+
+    def write_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
+        #sketchupLog("Creating object -> {} with default mat {}".format(name, default_material))
+        print("Write group {}".format(group.name))
+        if type=="Component":
+            if (name,default_material) in self.component_meshes:
+                me, alpha = self.component_meshes[(name,default_material)]
+            else:
+                me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
+                self.component_meshes[(name,default_material)] = (me, alpha)
+        else:
+            me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
+
+
+        if me:
+            ob = bpy.data.objects.new(name, me)
+            ob.matrix_world = parent_tranform
+            if alpha:
+                ob.show_transparent = True
+            me.update(calc_edges=True)
+            self.context.scene.objects.link(ob)
+            group.objects.link(ob)
+            ob.layers = 20 * [False]
+            ob.layers[18] = True
+
+
+
+        for g in entities.groups:
+            trans = Matrix(g.transform)
+            mat = g.material
+            mat_name = mat.name if mat else default_material
+            if mat_name == "Material" and default_material != "Material":
+                mat_name = default_material
+            self.write_group(g.entities,
+                                "G-" + g.name,
+                                parent_tranform * trans,
+                                default_material=mat_name,
+                                type="Group",
+                                group=group)
+
+        for instance in entities.instances:
+            trans = Matrix(instance.transform)
+            mat = instance.material
+            mat_name = mat.name if mat else default_material
+            if mat_name == "Material" and default_material != "Material":
+                mat_name = default_material
+            self.write_group(instance.definition.entities,
+                                instance.definition.name,
+                                parent_tranform * trans,
+                                default_material=mat_name,
+                                type="Component",
+                                group=group)
 
         return
 
