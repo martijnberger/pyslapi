@@ -67,7 +67,7 @@ def get_API_version():
 cdef check_result(SU_RESULT r):
     if not r is SU_ERROR_NONE:
         print(__str_from_SU_RESULT(r))
-        raise IOError("Sketchup library giving unexpected results {}".format(__str_from_SU_RESULT(r)))
+        raise RuntimeError("Sketchup library giving unexpected results {}".format(__str_from_SU_RESULT(r)))
 
 
 cdef __str_from_SU_RESULT(SU_RESULT r):
@@ -333,6 +333,15 @@ cdef class Instance:
             else:
                 return None
 
+    property hidden:
+        def __get__(self):
+            cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
+            cdef bool hide_flag = False
+            check_result(SUDrawingElementGetHidden(draw_elem, &hide_flag))
+            return hide_flag
+
+
+
 cdef instance_from_ptr(SUComponentInstanceRef r):
     res = Instance()
     res.instance.ptr = r.ptr
@@ -410,6 +419,14 @@ cdef class Group:
             else:
                 return None
 
+    property hidden:
+        def __get__(self):
+            cdef SUDrawingElementRef draw_elem = SUGroupToDrawingElement(self.group)
+            cdef bool hide_flag = False
+            check_result(SUDrawingElementGetHidden(draw_elem, &hide_flag))
+            return hide_flag
+
+
     def __repr__(self):
         return "Group {} \n\ttransform {}".format(self.name, self.transform)
 
@@ -434,7 +451,7 @@ cdef class Face:
         self.face_ref.ptr = <void *> 0
 
 
-    property triangles:
+    property tessfaces:
         def __get__(self):
             cdef SUMeshHelperRef mesh_ref
             mesh_ref.ptr = <void*> 0
@@ -449,12 +466,10 @@ cdef class Face:
             cdef size_t got_vertex_count = 0
             cdef SUPoint3D* vertices = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
             check_result(SUMeshHelperGetVertices(mesh_ref, vertex_count, vertices, &got_vertex_count))
-
             cdef SUPoint3D* stq = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
             cdef size_t got_stq_count = 0
             check_result(SUMeshHelperGetFrontSTQCoords(mesh_ref, vertex_count, stq, &got_stq_count))
-            #SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-            #SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
+
             vertices_list = []
             uv_list = []
             for i in range(got_vertex_count):
@@ -780,7 +795,7 @@ cdef class Model:
                 yield c
             free(components)
 
-    property scene:
+    property scenes:
         def __get__(self):
             cdef size_t num_scenes = 0
             check_result(SUModelGetNumScenes(self.model, &num_scenes))

@@ -108,8 +108,8 @@ class SceneImporter():
         sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
         if options['import_camera']:
-            for s in self.scenes:
-                self.write_camera(s.camera, s.name)
+            # for s in skp_model.scenes:
+            #     self.write_camera(s.camera, s.name)
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
@@ -191,7 +191,7 @@ class SceneImporter():
 
 
         for f in entities.faces:
-            vs, tri, uvs = f.triangles
+            vs, tri, uvs = f.tessfaces
 
             if f.material:
                 mat_number = mats[f.material.name]
@@ -317,6 +317,8 @@ class SceneImporter():
             self.context.scene.objects.link(ob)
 
         for group in entities.groups:
+            if group.hidden:
+                continue
             trans = Matrix(group.transform)
             mat = group.material
             mat_name = mat.name if mat else default_material
@@ -329,6 +331,8 @@ class SceneImporter():
                                 type="Group")
 
         for instance in entities.instances:
+            if instance.hidden:
+                continue
             trans = Matrix(instance.transform)
             mat = instance.material
             mat_name = mat.name if mat else default_material
@@ -362,10 +366,11 @@ class SceneImporter():
             if alpha:
                 ob.show_transparent = True
             me.update(calc_edges=True)
-            self.context.scene.objects.link(ob)
-            group.objects.link(ob)
             ob.layers = 20 * [False]
             ob.layers[18] = True
+            self.context.scene.objects.link(ob)
+            group.objects.link(ob)
+
 
 
 
