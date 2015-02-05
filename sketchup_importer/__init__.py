@@ -108,6 +108,8 @@ class SceneImporter():
         sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
         if options['import_camera']:
+            for s in self.scenes:
+                self.write_camera(s.camera, s.name)
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
@@ -343,7 +345,6 @@ class SceneImporter():
 
 
     def write_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
-        #sketchupLog("Creating object -> {} with default mat {}".format(name, default_material))
         print("Write group {}".format(group.name))
         if type=="Component":
             if (name,default_material) in self.component_meshes:
@@ -396,7 +397,7 @@ class SceneImporter():
 
         return
 
-    def write_camera(self, camera):
+    def write_camera(self, camera, name="Active Camera"):
         pos, target, up = camera.GetOrientation()
         bpy.ops.object.add(type='CAMERA', location=pos)
         ob = self.context.object
@@ -412,7 +413,7 @@ class SceneImporter():
         cam = ob.data
         cam.lens = camera.fov
         cam.clip_end = self.prefs.camera_far_plane
-        cam.name = "Active Camera"
+        cam.name = name
 
 
 

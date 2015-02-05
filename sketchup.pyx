@@ -18,6 +18,7 @@ from slapi.component cimport *
 from slapi.material cimport *
 from slapi.group cimport *
 from slapi.texture cimport *
+from slapi.scene cimport *
 
 cdef extern from "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
@@ -669,6 +670,24 @@ cdef class Scene:
 
     def __cinit__(self):
         self.scene.ptr = <void *> 0
+
+    property name:
+        def __get__(self):
+            cdef SUStringRef n
+            n.ptr = <void*>0
+            SUStringCreate(&n)
+            check_result(SUSceneGetName(self.scene, &n))
+            return StringRef2Py(n)
+
+    property camera:
+        def __get__(self):
+            cdef SUCameraRef c
+            c.ptr = <void*> 0
+            check_result(SUSceneGetCamera(self.scene, &c))
+            res = Camera()
+            res.set_ptr(c.ptr)
+            return res
+
 
 cdef class Model:
     cdef SUModelRef model
