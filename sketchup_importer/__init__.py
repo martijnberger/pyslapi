@@ -57,7 +57,7 @@ class SketchupAddonPreferences(AddonPreferences):
 
     camera_far_plane = IntProperty(name="Default Camera Distance", default=1250)
     draw_bounds = IntProperty(name="Draw object as bounds when over", default=5000)
-    max_instance = IntProperty( name="Create DUPLI vert instance when count over", default=50)
+
 
 
     def draw(self, context):
@@ -87,6 +87,7 @@ class SceneImporter():
         """load a sketchup file"""
         self.context = context
         self.reuse_material = options['reuse_material']
+        self.max_instance = options['max_instance']
         self.component_stats = defaultdict(list)
         self.component_skip = {}
         self.group_written ={}
@@ -122,12 +123,11 @@ class SceneImporter():
         self.analyze_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
 
 
-        instance_when_over = self.prefs.max_instance
+        instance_when_over = self.max_instance
 
         self.component_stats = { k : v for k,v in self.component_stats.items() if len(v) >= instance_when_over }
-        for k, v in self.component_stats.items():
+        for k, v in self.component_stats:
             print(k, len(v))
-
 
         self.write_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
         sketchupLog('imported entities in %.4f sec' % (time.time() - t1))
@@ -284,6 +284,7 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
+            # on second analyze pass do not count nested dedup instances
             self.analyze_entities(instance.definition.entities,
                                   instance.definition.name,
                                   parent_tranform * trans,
@@ -297,9 +298,9 @@ class SceneImporter():
             if (name,default_material) in self.component_stats:
                 group_name = "{}_{}".format(name,default_material)
                 group = bpy.data.groups.new(group_name)
-                self.write_group(entities, name, Matrix(), default_material=default_material, type=type, group=group)
+                self.conponent_definition_as_group(entities, name, Matrix(), default_material=default_material, type="Outer", group=group)
                 self.component_skip[(name,default_material)] = True
-
+                self.instance_group(name, default_material)
                 return
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
@@ -349,13 +350,14 @@ class SceneImporter():
         return
 
 
-    def write_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
-        print("Write group {}".format(group.name))
-        if (name, default_material) in self.group_written:
-            return
-        else:
-            self.group_written[(name, default_material)] = True
-        if type=="Component":
+    def conponent_definition_as_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
+        if type == "Outer":
+            if (name, default_material) in self.component_skip:
+                return
+            else:
+                sketchupLog("Write instance definition as group {} {}".format(group.name, default_material))
+                self.component_skip[(name, default_material)] = True
+        if type == "Component":
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
             else:
@@ -364,7 +366,6 @@ class SceneImporter():
         else:
             me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
 
-        ob = None
         if me:
             ob = bpy.data.objects.new(name, me)
             ob.matrix_world = parent_tranform
@@ -376,16 +377,13 @@ class SceneImporter():
             self.context.scene.objects.link(ob)
             group.objects.link(ob)
 
-
-
-
         for g in entities.groups:
             trans = Matrix(g.transform)
             mat = g.material
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            self.write_group(g.entities,
+            self.conponent_definition_as_group(g.entities,
                                 "G-" + g.name,
                                 parent_tranform * trans,
                                 default_material=mat_name,
@@ -398,7 +396,7 @@ class SceneImporter():
             mat_name = mat.name if mat else default_material
             if mat_name == "Material" and default_material != "Material":
                 mat_name = default_material
-            self.write_group(instance.definition.entities,
+            self.conponent_definition_as_group(instance.definition.entities,
                                 instance.definition.name,
                                 parent_tranform * trans,
                                 default_material=mat_name,
@@ -406,33 +404,42 @@ class SceneImporter():
                                 group=group)
 
 
+    def instance_group(self, name, default_material):
         verts = []
-        try:
-            for c in self.component_stats[(name, default_material)]:
-                verts.append( c.col[3][0:3] )
-        except KeyError as e:
-            for c in self.component_stats[(name[:-6], default_material)]:
-                verts.append( c.col[3][0:3] )
+        faces = []
+        f_count = 0
+
+        for c in self.component_stats[(name, default_material)]:
+            verts.append((Matrix(c) * Vector((-0.05, -0.05, 0, 1.0)))[0:3] )
+            verts.append((Matrix(c) * Vector(( 0.05, -0.05, 0, 1.0)))[0:3] )
+            verts.append((Matrix(c) * Vector((-0.05,  0.05, 0, 1.0)))[0:3] )
+            verts.append((Matrix(c) * Vector(( 0.05,  0.05, 0, 1.0)))[0:3] )
+            faces.append( (f_count + 0,  f_count + 1, f_count + 3, f_count + 2) )
+            f_count += 4
         dme = bpy.data.meshes.new('DUPLI_' + name)
         dme.vertices.add(len(verts))
         dme.vertices.foreach_set("co", unpack_list(verts))
+
+        dme.tessfaces.add(f_count /4 )
+        dme.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
         dme.update(calc_edges=True) # Update mesh with new data
         dme.validate()
         dob = bpy.data.objects.new("DUPLI_" + name, dme)
-        dob.dupli_type = 'VERTS'
-        self.context.scene.objects.link(dob)
-        if ob:
-            ob.parent=dob
-        else:
-            if name.lower().endswith("_proxy"):
-                name = name[:-6] # lets instance the real thing
-            ob = bpy.data.objects.new(name=name, object_data=None)
-            self.context.scene.objects.link(ob)
-            ob.dupli_type = 'GROUP'
-            group_name = "{}_{}".format(name,default_material)
-            ob.dupli_group = bpy.data.groups[group_name]
-            sketchupLog("Complex group {} {} imported".format(name, default_material))
+        dob.dupli_type = 'FACES'
+        dob.use_dupli_faces_scale = True
+        dob.dupli_faces_scale = 10
 
+        ob = bpy.data.objects.new(name=name, object_data=None)
+
+        ob.dupli_type = 'GROUP'
+        group_name = "{}_{}".format(name,default_material)
+        ob.dupli_group = bpy.data.groups[group_name]
+        ob.empty_draw_size = 0.01
+        sketchupLog("Complex group {} {} imported".format(name, default_material))
+        ob.parent = dob
+
+        self.context.scene.objects.link(ob)
+        self.context.scene.objects.link(dob)
         return
 
     def write_camera(self, camera, name="Active Camera"):
@@ -441,8 +448,8 @@ class SceneImporter():
         ob = self.context.object
 
         z = (mathutils.Vector(pos) - mathutils.Vector(target)).normalized()
-        x = z.cross(mathutils.Vector(up)).normalized()
-        y = z.cross(x)
+        y = mathutils.Vector(up).normalized()
+        x = y.cross(z).normalized()
 
         ob.matrix_world.col[0] = x.resized(4)
         ob.matrix_world.col[1] = y.resized(4)
@@ -470,7 +477,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
 
     import_camera = BoolProperty(name="Cameras", description="Import camera's", default=True)
     reuse_material = BoolProperty(name="Use Existing Materials", description="Reuse scene materials", default=True)
-
+    max_instance = IntProperty( name="Create DUPLI faces instance when count over", default=50)
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -485,6 +492,8 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row = layout.row(align=True)
         row.prop(self, "import_camera")
         row.prop(self, "reuse_material")
+        row = layout.row(align=True)
+        row.prop(self, "max_instance")
 
 
 def menu_func_import(self, context):
