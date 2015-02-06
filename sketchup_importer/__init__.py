@@ -170,6 +170,7 @@ class SceneImporter():
                     gname = group_name(name,mat)
                     if gname in bpy.data.groups:
                         print("Group {} already defined".format(name))
+                        self.component_skip[(name,mat)] = True
                         self.group_written[(name,mat)] = bpy.data.groups[gname]
                     else:
                         group = bpy.data.groups.new(name=gname)
@@ -177,6 +178,9 @@ class SceneImporter():
                         self.component_skip[(name,mat)] = True
                         self.group_written[(name,mat)] = group
 
+
+        if options["dedub_only"]:
+            return {'FINISHED'}
 
         component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list), component_skip=self.component_skip)
         for k, v in component_stats.items():
@@ -520,6 +524,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
     import_camera = BoolProperty(name="Cameras", description="Import camera's", default=True)
     reuse_material = BoolProperty(name="Use Existing Materials", description="Reuse scene materials", default=True)
     max_instance = IntProperty( name="Create DUPLI faces instance when count over", default=50)
+    dedub_only = BoolProperty(name="Groups Only", description="Import deduplicated groups only", default=True)
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -536,6 +541,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row.prop(self, "reuse_material")
         row = layout.row(align=True)
         row.prop(self, "max_instance")
+        row.prop(self, "dedub_only")
 
 
 def menu_func_import(self, context):
