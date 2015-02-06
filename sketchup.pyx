@@ -760,7 +760,7 @@ cdef class Model:
             res.set_ptr(c.ptr)
             return res
 
-    property Entities:
+    property entities:
         def __get__(self):
             cdef SUEntitiesRef entities
             entities.ptr = <void*> 0
@@ -807,6 +807,14 @@ cdef class Model:
                 s.scene.ptr = scenes[i].ptr
                 yield s
             free(scenes)
+
+
+    property component_definition_as_dict:
+        def __get__(self):
+            res = {}
+            for c in self.component_definitions:
+                res[c.name] = c
+            return res
 
 
 

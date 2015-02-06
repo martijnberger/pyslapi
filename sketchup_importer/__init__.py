@@ -17,8 +17,8 @@ __license__ = "GPL"
 bl_info = {
     "name": "Sketchup importer",
     "author": "Martijn Berger",
-    "version": (0, 0, 1, 'dev'),
-    "blender": (2, 7, 2),
+    "version": (0, 0, 2, 'dev'),
+    "blender": (2, 7, 3),
     "description": "import/export Sketchup skp files",
     "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
@@ -40,6 +40,8 @@ from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list
 from extensions_framework import log
 
 
+default_material_name = "Material"
+
 class keep_offset(defaultdict):
     def __init__(self):
         defaultdict.__init__(self, int)
@@ -52,6 +54,8 @@ class keep_offset(defaultdict):
         self[item] = number
         return number
 
+
+
 class SketchupAddonPreferences(AddonPreferences):
     bl_idname = __name__
 
@@ -59,18 +63,32 @@ class SketchupAddonPreferences(AddonPreferences):
     draw_bounds = IntProperty(name="Draw object as bounds when over", default=5000)
 
 
-
     def draw(self, context):
         layout = self.layout
         layout.label(text="SKP import options:")
         layout.prop(self, "camera_far_plane")
         layout.prop(self, "draw_bounds")
-        layout.prop(self, "max_instance")
+
+
 
 def sketchupLog(*args):
     if len(args) > 0:
         log(' '.join(['%s'%a for a in args]), module_name='Sketchup')
 
+
+
+
+def group_name(name, material):
+    if material != default_material_name:
+        return "{}_{}".format(name,material)
+    else:
+        return name
+
+def inherent_default_mat(mat, default_material):
+    mat_name = mat.name if mat else default_material
+    if mat_name == default_material_name and default_material != default_material_name:
+        mat_name = default_material
+    return mat_name
 
 class SceneImporter():
     def __init__(self):
@@ -90,6 +108,7 @@ class SceneImporter():
         self.max_instance = options['max_instance']
         self.component_stats = defaultdict(list)
         self.component_skip = {}
+        self.component_depth = {}
         self.group_written ={}
 
         sketchupLog('importing skp %r' % self.filepath)
@@ -105,7 +124,10 @@ class SceneImporter():
             sketchupLog('Error reading input file: %s' % self.filepath)
             sketchupLog(e)
             return {'FINISHED'}
+
         self.skp_model = skp_model
+
+        self.skp_componenets = skp_model.component_definition_as_dict
 
         sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
@@ -120,21 +142,85 @@ class SceneImporter():
         sketchupLog('imported materials in %.4f sec' % (time.time() - t1))
 
         t1 = time.time()
-        self.analyze_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
+        for c in self.skp_model.component_definitions:
+            d = self.component_deps(c.entities)
+            self.component_depth[c.name] = d
+        sketchupLog('analyzed component depths in %.4f sec' % (time.time() - t1))
 
 
+
+
+        component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list))
         instance_when_over = self.max_instance
+        max_depth = max(self.component_depth.values())
+        component_stats = { k : v for k,v in component_stats.items() if len(v) >= instance_when_over }
+        for i in range(max_depth + 1):
+            for k, v in component_stats.items():
+                name, mat = k
+                depth = self.component_depth[name]
+                print(k, len(v), depth)
+                comp_def = self.skp_componenets[name]
+                if comp_def and depth == i:
+                    group = bpy.data.groups.new(group_name(name,mat))
+                    self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
+                    self.component_skip[(name,mat)] = True
 
-        self.component_stats = { k : v for k,v in self.component_stats.items() if len(v) >= instance_when_over }
-        for k, v in self.component_stats:
-            print(k, len(v))
 
-        self.write_entities(skp_model.Entities, "Sketchup", Matrix.Identity(4))
+        component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list))
+        component_stats = { k : v for k,v in component_stats.items() if len(v) >= instance_when_over }
+        for k, v in component_stats.items():
+            if k in self.component_skip:
+                name, mat = k
+                self.instance_group(name, mat, component_stats)
+
+
+        self.write_entities(skp_model.entities, "Sketchup", Matrix.Identity(4))
         sketchupLog('imported entities in %.4f sec' % (time.time() - t1))
 
         sketchupLog('finished importing %s in %.4f sec '% (self.filepath, time.time() - time_main))
         return {'FINISHED'}
 
+
+    def component_deps(self, entities, comp=True):
+        own_depth = 1 if comp else 0
+
+        group_depth = 0
+        for group in entities.groups:
+            group_depth = max( group_depth, self.component_deps( group.entities, comp=False))
+
+        instance_depth = 0
+        for instance in entities.instances:
+            instance_depth = max(instance_depth, 1 + self.component_deps(instance.definition.entities))
+
+        return max(own_depth, group_depth, instance_depth)
+
+
+    def analyze_entities(self, entities, name, tranform, default_material="Material", type=None, component_stats=None):
+        if type=="Component":
+            component_stats[(name,default_material)].append(tranform)
+
+        for group in entities.groups:
+            self.analyze_entities(group.entities,
+                                  "G-" + group.name,
+                                  tranform * Matrix(group.transform),
+                                  default_material=inherent_default_mat(group.material, default_material),
+                                  type="Group",
+                                  component_stats=component_stats)
+
+        for instance in entities.instances:
+            mat = inherent_default_mat(instance.material, default_material)
+            name = instance.definition.name
+            if name.lower().endswith("_proxy"):
+                name = name[:-6] # lets instance the real thing
+            if (name,mat) in self.component_skip:
+                continue
+            self.analyze_entities(instance.definition.entities,
+                                  name,
+                                  tranform * Matrix(instance.transform),
+                                  default_material=mat,
+                                  type="Component",
+                                  component_stats=component_stats)
+        return component_stats
 
     def write_materials(self,materials):
         if self.context.scene.render.engine != 'CYCLES':
@@ -260,47 +346,9 @@ class SceneImporter():
         me.validate()
         return me, alpha
 
-    def analyze_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
-        if type=="Component":
-            if name.lower().endswith("_proxy"):
-                name = name[:-6] # lets instance the real thing
-            self.component_stats[(name,default_material)].append(parent_tranform)
-
-        for group in entities.groups:
-            trans = Matrix(group.transform)
-            mat = group.material
-            mat_name = mat.name if mat else default_material
-            if mat_name == "Material" and default_material != "Material":
-                mat_name = default_material
-            self.analyze_entities(group.entities,
-                                  "G-" + group.name,
-                                  parent_tranform * trans,
-                                  default_material=mat_name,
-                                  type="Group")
-
-        for instance in entities.instances:
-            trans = Matrix(instance.transform)
-            mat = instance.material
-            mat_name = mat.name if mat else default_material
-            if mat_name == "Material" and default_material != "Material":
-                mat_name = default_material
-            # on second analyze pass do not count nested dedup instances
-            self.analyze_entities(instance.definition.entities,
-                                  instance.definition.name,
-                                  parent_tranform * trans,
-                                  default_material=mat_name,
-                                  type="Component")
-
-
-
     def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
         if type=="Component":
-            if (name,default_material) in self.component_stats:
-                group_name = "{}_{}".format(name,default_material)
-                group = bpy.data.groups.new(group_name)
-                self.conponent_definition_as_group(entities, name, Matrix(), default_material=default_material, type="Outer", group=group)
-                self.component_skip[(name,default_material)] = True
-                self.instance_group(name, default_material)
+            if (name,default_material) in self.component_skip:
                 return
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
@@ -321,32 +369,23 @@ class SceneImporter():
         for group in entities.groups:
             if group.hidden:
                 continue
-            trans = Matrix(group.transform)
-            mat = group.material
-            mat_name = mat.name if mat else default_material
-            if mat_name == "Material" and default_material != "Material":
-                mat_name = default_material
             self.write_entities(group.entities,
                                 "G-" + group.name,
-                                parent_tranform * trans,
-                                default_material=mat_name,
+                                parent_tranform * Matrix(group.transform),
+                                default_material=inherent_default_mat(group.material, default_material),
                                 type="Group")
 
         for instance in entities.instances:
             if instance.hidden:
                 continue
-            trans = Matrix(instance.transform)
-            mat = instance.material
-            mat_name = mat.name if mat else default_material
-            if mat_name == "Material" and default_material != "Material":
-                mat_name = default_material
-            if not (instance.definition.name, mat_name) in self.component_skip:
-                self.write_entities(instance.definition.entities,
-                                    instance.definition.name,
-                                    parent_tranform * trans,
-                                    default_material=mat_name,
-                                    type="Component")
-
+            mat_name = inherent_default_mat(instance.material, default_material)
+            if (instance.definition.name, mat_name) in self.component_skip:
+                continue
+            self.write_entities(instance.definition.entities,
+                                instance.definition.name,
+                                parent_tranform * Matrix(instance.transform),
+                                default_material=mat_name,
+                                type="Component")
         return
 
 
@@ -378,38 +417,33 @@ class SceneImporter():
             group.objects.link(ob)
 
         for g in entities.groups:
-            trans = Matrix(g.transform)
-            mat = g.material
-            mat_name = mat.name if mat else default_material
-            if mat_name == "Material" and default_material != "Material":
-                mat_name = default_material
             self.conponent_definition_as_group(g.entities,
                                 "G-" + g.name,
-                                parent_tranform * trans,
-                                default_material=mat_name,
+                                parent_tranform * Matrix(g.transform),
+                                default_material=inherent_default_mat(g.material, default_material),
                                 type="Group",
                                 group=group)
 
         for instance in entities.instances:
-            trans = Matrix(instance.transform)
-            mat = instance.material
-            mat_name = mat.name if mat else default_material
-            if mat_name == "Material" and default_material != "Material":
-                mat_name = default_material
-            self.conponent_definition_as_group(instance.definition.entities,
-                                instance.definition.name,
-                                parent_tranform * trans,
-                                default_material=mat_name,
+            name = instance.definition.name
+            if name.lower().endswith("_proxy"):
+                cdef = self.skp_componenets[name[:-6]]
+            else:
+                cdef = instance.definition
+            self.conponent_definition_as_group(cdef.entities,
+                                cdef.name,
+                                parent_tranform * Matrix(instance.transform),
+                                default_material=inherent_default_mat(instance.material, default_material),
                                 type="Component",
                                 group=group)
 
 
-    def instance_group(self, name, default_material):
+    def instance_group(self, name, default_material, component_stats):
         verts = []
         faces = []
         f_count = 0
 
-        for c in self.component_stats[(name, default_material)]:
+        for c in component_stats[(name, default_material)]:
             verts.append((Matrix(c) * Vector((-0.05, -0.05, 0, 1.0)))[0:3] )
             verts.append((Matrix(c) * Vector(( 0.05, -0.05, 0, 1.0)))[0:3] )
             verts.append((Matrix(c) * Vector((-0.05,  0.05, 0, 1.0)))[0:3] )
@@ -432,14 +466,12 @@ class SceneImporter():
         ob = bpy.data.objects.new(name=name, object_data=None)
 
         ob.dupli_type = 'GROUP'
-        group_name = "{}_{}".format(name,default_material)
-        ob.dupli_group = bpy.data.groups[group_name]
+        ob.dupli_group = bpy.data.groups[group_name(name,default_material)]
         ob.empty_draw_size = 0.01
-        sketchupLog("Complex group {} {} imported".format(name, default_material))
         ob.parent = dob
-
         self.context.scene.objects.link(ob)
         self.context.scene.objects.link(dob)
+        sketchupLog("Complex group {} {} instanced {} times ".format(name, default_material, f_count / 4))
         return
 
     def write_camera(self, camera, name="Active Camera"):
