@@ -143,8 +143,8 @@ class SceneImporter():
 
         t1 = time.time()
         for c in self.skp_model.component_definitions:
-            d = self.component_deps(c.entities)
-            self.component_depth[c.name] = d
+            print(c.name)
+            self.component_depth[c.name] = self.component_deps(c.entities)
         sketchupLog('analyzed component depths in %.4f sec' % (time.time() - t1))
 
 
@@ -157,17 +157,28 @@ class SceneImporter():
         for i in range(max_depth + 1):
             for k, v in component_stats.items():
                 name, mat = k
-                depth = self.component_depth[name]
+                try:
+                    depth = self.component_depth[name]
+                except KeyError as e:
+                    depth = self.component_depth[name + "_proxy"]
                 print(k, len(v), depth)
-                comp_def = self.skp_componenets[name]
+                try:
+                    comp_def = self.skp_componenets[name]
+                except KeyError as e:
+                    comp_def = self.skp_componenets[name+ "_proxy"]
                 if comp_def and depth == i:
-                    group = bpy.data.groups.new(group_name(name,mat))
-                    self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
-                    self.component_skip[(name,mat)] = True
+                    gname = group_name(name,mat)
+                    if gname in bpy.data.groups:
+                        print("Group {} already defined".format(name))
+                        self.group_written[(name,mat)] = bpy.data.groups[gname]
+                    else:
+                        group = bpy.data.groups.new(name=gname)
+                        self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
+                        self.component_skip[(name,mat)] = True
+                        self.group_written[(name,mat)] = group
 
 
-        component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list))
-        component_stats = { k : v for k,v in component_stats.items() if len(v) >= instance_when_over }
+        component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list), component_skip=self.component_skip)
         for k, v in component_stats.items():
             if k in self.component_skip:
                 name, mat = k
@@ -195,7 +206,7 @@ class SceneImporter():
         return max(own_depth, group_depth, instance_depth)
 
 
-    def analyze_entities(self, entities, name, tranform, default_material="Material", type=None, component_stats=None):
+    def analyze_entities(self, entities, name, tranform, default_material="Material", type=None, component_stats=None, component_skip=[]):
         if type=="Component":
             component_stats[(name,default_material)].append(tranform)
 
@@ -212,7 +223,7 @@ class SceneImporter():
             name = instance.definition.name
             if name.lower().endswith("_proxy"):
                 name = name[:-6] # lets instance the real thing
-            if (name,mat) in self.component_skip:
+            if (name,mat) in component_skip:
                 continue
             self.analyze_entities(instance.definition.entities,
                                   name,
@@ -411,9 +422,8 @@ class SceneImporter():
             if alpha:
                 ob.show_transparent = True
             me.update(calc_edges=True)
-            ob.layers = 20 * [False]
-            ob.layers[18] = True
             self.context.scene.objects.link(ob)
+            ob.layers = 18 * [False] + [True] + [False]
             group.objects.link(ob)
 
         for g in entities.groups:
@@ -466,7 +476,7 @@ class SceneImporter():
         ob = bpy.data.objects.new(name=name, object_data=None)
 
         ob.dupli_type = 'GROUP'
-        ob.dupli_group = bpy.data.groups[group_name(name,default_material)]
+        ob.dupli_group = self.group_written[(name,default_material)]
         ob.empty_draw_size = 0.01
         ob.parent = dob
         self.context.scene.objects.link(ob)
