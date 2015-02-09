@@ -19,6 +19,7 @@ from slapi.material cimport *
 from slapi.group cimport *
 from slapi.texture cimport *
 from slapi.scene cimport *
+from slapi.layer cimport *
 
 cdef extern from "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
@@ -373,6 +374,25 @@ cdef class Component:
 
 
 
+cdef class Layer:
+    cdef SULayerRef layer
+
+    def __cinit__(self):
+        pass
+
+    property name:
+        def __get__(self):
+            cdef SUStringRef n
+            n.ptr = <void*>0
+            SUStringCreate(&n)
+            check_result(SULayerGetName(self.layer, &n))
+            return StringRef2Py(n)
+
+    property visible:
+        def __get__(self):
+            cdef bool visible_flag = False
+            check_result(SULayerGetVisibility(self.layer, &visible_flag))
+            return visible_flag
 
 cdef class Group:
     cdef SUGroupRef group
@@ -432,10 +452,6 @@ cdef class Group:
 
 
 
-cdef group_from_ptr(SUGroupRef r):
-    res = Group()
-    res.group.ptr = r.ptr
-    return res
 
 cdef class Entity:
     cdef SUEntityRef entity
@@ -503,11 +519,6 @@ cdef class Face:
         return "Face with {} triangles {} vertices\n {} {}".format(len(t), len(v), v, t)
 
 
-cdef face_from_ptr(SUFaceRef& r):
-    res = Face()
-    res.face_ref.ptr = r.ptr
-    return res
-
 cdef class Entities:
     cdef SUEntitiesRef entities
 
@@ -561,12 +572,14 @@ cdef class Entities:
         def __get__(self):
             cdef size_t len = 0
             check_result(SUEntitiesGetNumFaces(self.entities, &len))
-            cdef SUFaceRef * faces = <SUFaceRef*>malloc(sizeof(SUFaceRef) * len)
+            cdef SUFaceRef* faces_array = <SUFaceRef*>malloc(sizeof(SUFaceRef) * len)
             cdef size_t count = 0
-            check_result(SUEntitiesGetFaces(self.entities, len, faces, &count))
+            check_result(SUEntitiesGetFaces(self.entities, len, faces_array, &count))
             for i in range(count):
-                yield face_from_ptr(faces[i])
-            #free(faces)
+                res = Face()
+                res.face_ref.ptr = faces_array[i].ptr
+                yield res
+            free(faces_array)
 
     def get__triangles_lists(self, default_material):
         verts = []
@@ -622,7 +635,9 @@ cdef class Entities:
             cdef size_t count = 0
             check_result(SUEntitiesGetGroups(self.entities, num_groups, groups, &count))
             for i in range(count):
-                yield group_from_ptr(groups[i])
+                res = Group()
+                res.group.ptr = groups[i].ptr
+                yield res
             free(groups)
 
     property instances:
@@ -817,6 +832,24 @@ cdef class Model:
             for c in self.component_definitions:
                 res[c.name] = c
             return res
+
+    property layers:
+        def __get__(self):
+            cdef size_t num_layers = 0
+            check_result(SUModelGetNumLayers(self.model, &num_layers))
+            cdef SULayerRef* layers_array = <SULayerRef*>malloc(sizeof(SULayerRef) * num_layers)
+            for i in range(num_layers):
+                layers_array[i].ptr = <void*> 0
+            cdef size_t count = 0
+            check_result(SUModelGetLayers(self.model, num_layers, layers_array, &count))
+            for i in range(count):
+                l = Layer()
+                l.layer.ptr = layers_array[i].ptr
+                yield l
+            free(layers_array)
+
+
+
 
 
 

@@ -173,11 +173,12 @@ class SceneImporter():
                 if comp_def and depth == i:
                     gname = group_name(name,mat)
                     if gname in bpy.data.groups:
-                        print("Group {} already defined".format(name))
+                        print("Group {} already defined".format(gname))
                         self.component_skip[(name,mat)] = True
                         self.group_written[(name,mat)] = bpy.data.groups[gname]
                     else:
                         group = bpy.data.groups.new(name=gname)
+                        print("Component written as group".format(gname))
                         self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
                         self.component_skip[(name,mat)] = True
                         self.group_written[(name,mat)] = group
@@ -186,14 +187,14 @@ class SceneImporter():
         if options["dedub_only"]:
             return {'FINISHED'}
 
-        component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list), component_skip=self.component_skip)
-        for k, v in component_stats.items():
-            if k in self.component_skip:
-                name, mat = k
-                self.instance_group(name, mat, component_stats)
-
-
+        self.component_stats = defaultdict(list)
         self.write_entities(skp_model.entities, "Sketchup", Matrix.Identity(4))
+
+        for k, v in self.component_stats.items():
+            name, mat = k
+            self.instance_group(name, mat, self.component_stats)
+
+
         sketchupLog('imported entities in %.4f sec' % (time.time() - t1))
 
         sketchupLog('finished importing %s in %.4f sec '% (self.filepath, time.time() - time_main))
@@ -377,6 +378,7 @@ class SceneImporter():
     def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
         if type=="Component":
             if (name,default_material) in self.component_skip:
+                self.component_stats[(name,default_material)].append(parent_tranform)
                 return
             if (name,default_material) in self.component_meshes:
                 me, alpha = self.component_meshes[(name,default_material)]
@@ -408,8 +410,8 @@ class SceneImporter():
                 continue
             mat_name = inherent_default_mat(instance.material, default_material)
             cdef = self.get_sketchup_component_definition(instance.definition.name)
-            if (cdef.name, mat_name) in self.component_skip:
-                continue
+            # if (cdef.name, mat_name) in self.component_skip:
+            #     continue
             self.write_entities(cdef.entities,
                                 cdef.name,
                                 parent_tranform * Matrix(instance.transform),
@@ -555,10 +557,11 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         options={'HIDDEN'},
     )
 
-    import_camera = BoolProperty(name="Cameras", description="Import camera's", default=True)
+    import_camera = BoolProperty(name="Camera", description="Import Active view as camera", default=True)
     reuse_material = BoolProperty(name="Use Existing Materials", description="Reuse scene materials", default=True)
     max_instance = IntProperty( name="Create DUPLI faces instance when count over", default=50)
     dedub_only = BoolProperty(name="Groups Only", description="Import deduplicated groups only", default=False)
+    scenes_as_camera = BoolProperty(name="Camera", description="Import Active view as camera", default=True)
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
