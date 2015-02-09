@@ -357,8 +357,11 @@ class SceneImporter():
                 me.materials.append(bmat)
                 if bmat.alpha < 1.0:
                     alpha = True
-                if 'Image Texture' in bmat.node_tree.nodes.keys():
-                    uvs_used = True
+                try:
+                    if 'Image Texture' in bmat.node_tree.nodes.keys():
+                        uvs_used = True
+                except AttributeError as e:
+                    uvs_used = False
         else:
             sketchupLog("WARNING OBJECT {} HAS NO MATERIAL".format(name))
 
@@ -410,8 +413,6 @@ class SceneImporter():
                 continue
             mat_name = inherent_default_mat(instance.material, default_material)
             cdef = self.get_sketchup_component_definition(instance.definition.name)
-            # if (cdef.name, mat_name) in self.component_skip:
-            #     continue
             self.write_entities(cdef.entities,
                                 cdef.name,
                                 parent_tranform * Matrix(instance.transform),
