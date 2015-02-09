@@ -134,8 +134,10 @@ class SceneImporter():
         sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
         if options['import_camera']:
-            # for s in skp_model.scenes:
-            #     self.write_camera(s.camera, s.name)
+            for s in skp_model.scenes:
+                print(s.name)
+                print("#")
+                self.write_camera(s.camera, s.name)
             active_cam = self.write_camera(skp_model.camera)
             context.scene.camera = active_cam
 
@@ -523,6 +525,7 @@ class SceneImporter():
         pos, target, up = camera.GetOrientation()
         bpy.ops.object.add(type='CAMERA', location=pos)
         ob = self.context.object
+        ob.name = name
 
         z = (mathutils.Vector(pos) - mathutils.Vector(target))
         y = mathutils.Vector(up)

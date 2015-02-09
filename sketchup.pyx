@@ -799,14 +799,16 @@ cdef class Model:
         def __get__(self):
             cdef size_t num_scenes = 0
             check_result(SUModelGetNumScenes(self.model, &num_scenes))
-            cdef SUSceneRef* scenes = <SUSceneRef*>malloc(sizeof(SUSceneRef) * num_scenes)
+            cdef SUSceneRef* scenes_array = <SUSceneRef*>malloc(sizeof(SUSceneRef) * num_scenes)
+            for i in range(num_scenes):
+                scenes_array[i].ptr = <void*> 0
             cdef size_t count = 0
-            check_result(SUModelGetScenes(self.model, num_scenes, scenes, &count))
+            check_result(SUModelGetScenes(self.model, num_scenes, scenes_array, &count))
             for i in range(count):
                 s = Scene()
-                s.scene.ptr = scenes[i].ptr
+                s.scene.ptr = scenes_array[i].ptr
                 yield s
-            free(scenes)
+            free(scenes_array)
 
 
     property component_definition_as_dict:
