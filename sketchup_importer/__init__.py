@@ -55,6 +55,23 @@ class keep_offset(defaultdict):
         return number
 
 
+class proxy_dict(dict):
+    """
+        Class that emulates a dictionary and returns the real definition value even when asking for a _proxy one
+    """
+    def __init__(self, *args, **kwargs ):
+        dict.__init__(self, *args, **kwargs )
+        print(self.keys())
+
+    def __getitem__(self, key):
+        if key.lower().endswith("_proxy"):
+            print("KEY ", key)
+            try:
+                return dict.__getitem__(self, key[:-6])
+            except KeyError as e:
+                return dict.__getitem__(self, key)
+        return dict.__getitem__(self, key)
+
 
 class SketchupAddonPreferences(AddonPreferences):
     bl_idname = __name__
@@ -92,6 +109,33 @@ def inherent_default_mat(mat, default_material):
     return mat_name
 
 
+def figure_out_sketchup_scaling(transform):
+    loc, rotation, scale = transform.decompose()
+    if scale[0] < 0 and scale[1] < 0 and scale[2] < 0:
+        #print("seems we have flipped component", scale, rotation.to_euler())
+        euler = rotation.to_euler()
+        x_factor = 1.0
+        y_factor = 1.0
+        z_factor = 1.0
+        if 3.1415 < abs(euler.x) < 3.1417:
+            y_factor = -1.0
+            z_factor = -1.0
+            euler.x = 0
+        if 3.1415 < abs(euler.y) < 3.1417:
+            x_factor = -1.0
+            z_factor = -1.0
+            euler.y = 0
+        if 3.1415 < abs(euler.z) < 3.1417:
+            x_factor = -1.0
+            y_factor = -1.0
+            euler.z = 0
+        scale = x_factor * scale[0], y_factor * scale[1], z_factor * scale[2]
+        rot = euler.to_quaternion()
+        #print("real scale -> {}  rot ->  {}", scale, rot.to_euler())
+        return Matrix.Translation(loc) * rot.to_matrix().to_4x4() * Matrix.Scale(1, 4, scale )#= mat_loc * mat_rot * mat_sca
+    return transform
+
+
 class SceneImporter():
     def __init__(self):
         self.filepath = '/tmp/untitled.skp'
@@ -109,40 +153,38 @@ class SceneImporter():
         self.reuse_material = options['reuse_material']
         self.max_instance = options['max_instance']
         self.component_stats = defaultdict(list)
-        self.component_skip = {}
-        self.component_depth = {}
+        self.component_skip = proxy_dict()
+        self.component_depth = proxy_dict()
         self.group_written ={}
 
         sketchupLog('importing skp %r' % self.filepath)
 
         addon_name = __name__.split('.')[0]
-        self.prefs = addon_prefs = context.user_preferences.addons[addon_name].preferences
+        self.prefs = context.user_preferences.addons[addon_name].preferences
 
         time_main = time.time()
 
         try:
-            skp_model = sketchup.Model.from_file(self.filepath)
+            self.skp_model = sketchup.Model.from_file(self.filepath)
         except Exception as e:
             sketchupLog('Error reading input file: %s' % self.filepath)
             sketchupLog(e)
             return {'FINISHED'}
 
-        self.skp_model = skp_model
-
-        self.skp_componenets = skp_model.component_definition_as_dict
+        self.skp_components = proxy_dict(self.skp_model.component_definition_as_dict)
 
         sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
         if options['import_camera']:
-            for s in skp_model.scenes:
+            for s in self.skp_model.scenes:
                 print(s.name)
                 print("#")
                 self.write_camera(s.camera, s.name)
-            active_cam = self.write_camera(skp_model.camera)
+            active_cam = self.write_camera(self.skp_model.camera)
             context.scene.camera = active_cam
 
         t1 = time.time()
-        self.write_materials(skp_model.materials)
+        self.write_materials(self.skp_model.materials)
         sketchupLog('imported materials in %.4f sec' % (time.time() - t1))
 
         t1 = time.time()
@@ -152,43 +194,13 @@ class SceneImporter():
         sketchupLog('analyzed component depths in %.4f sec' % (time.time() - t1))
 
 
-
-
-        component_stats = self.analyze_entities(skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list))
-        instance_when_over = self.max_instance
-        max_depth = max(self.component_depth.values())
-        component_stats = { k : v for k,v in component_stats.items() if len(v) >= instance_when_over }
-        for i in range(max_depth + 1):
-            for k, v in component_stats.items():
-                name, mat = k
-                try:
-                    depth = self.component_depth[name]
-                except KeyError as e:
-                    depth = self.component_depth[name + "_proxy"]
-                print(k, len(v), depth)
-                try:
-                    comp_def = self.skp_componenets[name]
-                except KeyError as e:
-                    comp_def = self.skp_componenets[name+ "_proxy"]
-                if comp_def and depth == i:
-                    gname = group_name(name,mat)
-                    if gname in bpy.data.groups:
-                        print("Group {} already defined".format(gname))
-                        self.component_skip[(name,mat)] = True
-                        self.group_written[(name,mat)] = bpy.data.groups[gname]
-                    else:
-                        group = bpy.data.groups.new(name=gname)
-                        print("Component written as group".format(gname))
-                        self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
-                        self.component_skip[(name,mat)] = True
-                        self.group_written[(name,mat)] = group
-
+        self.write_duplicateable_groups()
 
         if options["dedub_only"]:
             return {'FINISHED'}
 
         self.component_stats = defaultdict(list)
-        self.write_entities(skp_model.entities, "Sketchup", Matrix.Identity(4))
+        self.write_entities(self.skp_model.entities, "Sketchup", Matrix.Identity(4))
 
         for k, v in self.component_stats.items():
             name, mat = k
@@ -203,15 +215,32 @@ class SceneImporter():
         return {'FINISHED'}
 
 
-    def get_sketchup_component_definition(self, name):
-        if name.lower().endswith("_proxy"):
-            try:
-                return self.skp_componenets[name[:-6]]
-            except KeyError as e:
-                return self.skp_componenets[name]
-        else:
-            return self.skp_componenets[name]
-
+    def write_duplicateable_groups(self):
+        component_stats = self.analyze_entities(self.skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list))
+        instance_when_over = self.max_instance
+        max_depth = max(self.component_depth.values())
+        component_stats = { k : v for k,v in component_stats.items() if len(v) >= instance_when_over }
+        for i in range(max_depth + 1):
+            for k, v in component_stats.items():
+                name, mat = k
+                depth = self.component_depth[name]
+                print(k, len(v), depth)
+                comp_def = self.skp_components[name]
+                if comp_def and depth == 1:
+                    #self.component_skip[(name,mat)] = comp_def.entities
+                    pass
+                elif comp_def and depth == i:
+                    gname = group_name(name,mat)
+                    if gname in bpy.data.groups:
+                        print("Group {} already defined".format(gname))
+                        self.component_skip[(name,mat)] = comp_def.entities
+                        self.group_written[(name,mat)] = bpy.data.groups[gname]
+                    else:
+                        group = bpy.data.groups.new(name=gname)
+                        print("Component written as group".format(gname))
+                        self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
+                        self.component_skip[(name,mat)] = comp_def.entities
+                        self.group_written[(name,mat)] = group
 
 
     def component_deps(self, entities, comp=True):
@@ -228,26 +257,26 @@ class SceneImporter():
         return max(own_depth, group_depth, instance_depth)
 
 
-    def analyze_entities(self, entities, name, tranform, default_material="Material", type=None, component_stats=None, component_skip=[]):
+    def analyze_entities(self, entities, name, transform, default_material="Material", type=None, component_stats=None, component_skip=[]):
         if type=="Component":
-            component_stats[(name,default_material)].append(tranform)
+            component_stats[(name,default_material)].append(transform)
 
         for group in entities.groups:
             self.analyze_entities(group.entities,
                                   "G-" + group.name,
-                                  tranform * Matrix(group.transform),
+                                  transform * Matrix(group.transform),
                                   default_material=inherent_default_mat(group.material, default_material),
                                   type="Group",
                                   component_stats=component_stats)
 
         for instance in entities.instances:
             mat = inherent_default_mat(instance.material, default_material)
-            cdef = self.get_sketchup_component_definition(instance.definition.name)
+            cdef = self.skp_components[instance.definition.name]
             if (cdef.name,mat) in component_skip:
                 continue
             self.analyze_entities(cdef.entities,
                                   cdef.name,
-                                  tranform * Matrix(instance.transform),
+                                  transform * Matrix(instance.transform),
                                   default_material=mat,
                                   type="Component",
                                   component_stats=component_stats)
@@ -414,7 +443,7 @@ class SceneImporter():
             if instance.hidden:
                 continue
             mat_name = inherent_default_mat(instance.material, default_material)
-            cdef = self.get_sketchup_component_definition(instance.definition.name)
+            cdef = self.skp_components[instance.definition.name]
             self.write_entities(cdef.entities,
                                 cdef.name,
                                 parent_tranform * Matrix(instance.transform),
@@ -422,6 +451,22 @@ class SceneImporter():
                                 type="Component")
         return
 
+
+    def instance_object_or_group(self, name, default_material):
+        try:
+            group = self.group_written[(name,default_material)]
+            ob = bpy.data.objects.new(name=name, object_data=None)
+            ob.dupli_type = 'GROUP'
+            ob.dupli_group = group
+            ob.empty_draw_size = 0.01
+            return ob
+        except KeyError as e:
+            me, alpha = self.component_meshes[(name,default_material)]
+            ob = bpy.data.objects.new(name, me)
+            if alpha:
+                ob.show_transparent = True
+            me.update(calc_edges=True)
+            return ob
 
     def conponent_definition_as_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
         if type == "Outer":
@@ -432,10 +477,7 @@ class SceneImporter():
                 self.component_skip[(name, default_material)] = True
         if type == "Component":
             if (name,default_material) in self.component_skip:
-                ob = bpy.data.objects.new(name=name, object_data=None)
-                ob.dupli_type = 'GROUP'
-                ob.dupli_group = self.group_written[(name,default_material)]
-                ob.empty_draw_size = 0.01
+                ob = self.instance_object_or_group(name,default_material)
                 ob.matrix_world = parent_tranform
                 self.context.scene.objects.link(ob)
                 ob.layers = 18 * [False] + [True] + [False]
@@ -468,13 +510,16 @@ class SceneImporter():
                                 group=group)
 
         for instance in entities.instances:
-            cdef = self.get_sketchup_component_definition(instance.definition.name)
+            cdef = self.skp_components[instance.definition.name]
             self.conponent_definition_as_group(cdef.entities,
                                 cdef.name,
                                 parent_tranform * Matrix(instance.transform),
                                 default_material=inherent_default_mat(instance.material, default_material),
                                 type="Component",
                                 group=group)
+
+
+
 
 
     def instance_group_dupli_vert(self, name, default_material, component_stats):
@@ -489,7 +534,7 @@ class SceneImporter():
                 scale , rot = key
                 yield scale , rot, locs
 
-        for scale , rot, locs in get_orientations(component_stats[(name, default_material)]):
+        for scale, rot, locs in get_orientations(component_stats[(name, default_material)]):
             verts = []
             main_loc = Vector(locs[0])
             for c in locs:
@@ -503,19 +548,15 @@ class SceneImporter():
             dob.location = main_loc
             dob.dupli_type = 'VERTS'
 
-            ob = bpy.data.objects.new(name=name, object_data=None)
-            ob.dupli_type = 'GROUP'
-            ob.dupli_group = self.group_written[(name,default_material)]
-            ob.empty_draw_size = 0.01
+            ob = self.instance_object_or_group(name,default_material)
             ob.scale = scale
             ob.rotation_quaternion = Quaternion((rot[0], rot[1], rot[2], rot[3]))
             ob.parent = dob
 
             self.context.scene.objects.link(ob)
             self.context.scene.objects.link(dob)
-            sketchupLog("Complex group {} {} instanced {} times".format(name, default_material, len(verts)))
+            sketchupLog("Complex group {} {} instanced {} times, scale -> {}".format(name, default_material, len(verts), scale))
         return
-
 
     def instance_group_dupli_face(self, name, default_material, component_stats):
         def get_orientations( v):
@@ -524,21 +565,24 @@ class SceneImporter():
                 loc, rot, scale = Matrix(transform).decompose()
                 scale = (scale[0], scale[1], scale[2])
                 orientations[scale].append(transform)
-            for orientation, transforms in orientations.items():
-                yield orientation, transforms
+            for scale, transforms in orientations.items():
+                yield scale, transforms
 
-        for orientation, transforms in get_orientations(component_stats[(name, default_material)]):
-            scale_matrix = Matrix.Scale(1.0, 4, (-1 * orientation[0], -1 * orientation[1], -1 * orientation[2]))
+
+        for scale, transforms in get_orientations(component_stats[(name, default_material)]):
+            main_loc, rot, real_scale  = Matrix(transforms[0]).decompose()
+            #real_scale, real_rot = self.figure_out_sketchup_scaling(rot, scale)
+            scale_matrix = Matrix.Scale(1.0, 4, (real_scale)).inverted()
             verts = []
             faces = []
             f_count = 0
             for c in transforms:
                 mat = scale_matrix * Matrix(c)
-                verts.append((mat * Vector((-0.05, -0.05, 0, 1.0)))[0:3] )
-                verts.append((mat * Vector(( 0.05, -0.05, 0, 1.0)))[0:3] )
-                verts.append((mat * Vector((-0.05,  0.05, 0, 1.0)))[0:3] )
-                verts.append((mat * Vector(( 0.05,  0.05, 0, 1.0)))[0:3] )
-                faces.append( (f_count + 0,  f_count + 1, f_count + 3, f_count + 2) )
+                verts.append(Vector((mat * Vector((-0.05, -0.05, 0, 1.0)))[0:3]) - main_loc)
+                verts.append(Vector((mat * Vector(( 0.05, -0.05, 0, 1.0)))[0:3]) - main_loc)
+                verts.append(Vector((mat * Vector(( 0.05,  0.05, 0, 1.0)))[0:3]) - main_loc)
+                verts.append(Vector((mat * Vector((-0.05,  0.05, 0, 1.0)))[0:3]) - main_loc)
+                faces.append( (f_count + 0,  f_count + 1, f_count + 2, f_count + 3) )
                 f_count += 4
             dme = bpy.data.meshes.new('DUPLI_' + name)
             dme.vertices.add(len(verts))
@@ -550,19 +594,16 @@ class SceneImporter():
             dme.validate()
             dob = bpy.data.objects.new("DUPLI_" + name, dme)
             dob.dupli_type = 'FACES'
+            dob.location = main_loc
             #dob.use_dupli_faces_scale = True
             #dob.dupli_faces_scale = 10
 
-            ob = bpy.data.objects.new(name=name, object_data=None)
-
-            ob.dupli_type = 'GROUP'
-            ob.dupli_group = self.group_written[(name,default_material)]
-            ob.empty_draw_size = 0.01
-            #ob.scale = orientation[0], orientation[1], orientation[2]
+            ob = self.instance_object_or_group(name,default_material)
+            ob.scale = real_scale
             ob.parent = dob
             self.context.scene.objects.link(ob)
             self.context.scene.objects.link(dob)
-            sketchupLog("Complex group {} {} instanced {} times {}".format(name, default_material, f_count / 4, orientation))
+            sketchupLog("Complex group {} {} instanced {} times".format(name, default_material, f_count / 4))
         return
 
     def write_camera(self, camera, name="Active Camera"):
