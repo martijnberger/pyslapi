@@ -30,12 +30,12 @@ import bpy
 import os
 import time
 from . import sketchup
-import mathutils
 import tempfile
+from math import pi
 from collections import OrderedDict, defaultdict
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, Quaternion
 from bpy.types import Operator, AddonPreferences
-from bpy.props import StringProperty, IntProperty, BoolProperty
+from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
 from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list
 from extensions_framework import log
 
@@ -192,8 +192,10 @@ class SceneImporter():
 
         for k, v in self.component_stats.items():
             name, mat = k
-            self.instance_group(name, mat, self.component_stats)
-
+            if options['dedub_type'] == "VERTEX":
+                self.instance_group_dupli_vert(name, mat, self.component_stats)
+            else:
+                self.instance_group_dupli_face(name, mat, self.component_stats)
 
         sketchupLog('imported entities in %.4f sec' % (time.time() - t1))
 
@@ -475,28 +477,67 @@ class SceneImporter():
                                 group=group)
 
 
+    def instance_group_dupli_vert(self, name, default_material, component_stats):
+        def get_orientations(v):
+            orientations = defaultdict(list)
+            for transform in v:
+                loc, rot, scale = Matrix(transform).decompose()
+                scale = (scale[0], scale[1], scale[2])
+                rot = (rot[0], rot[1], rot[2], rot[3])
+                orientations[(scale, rot)].append((loc[0], loc[1], loc[2]))
+            for key, locs in orientations.items():
+                scale , rot = key
+                yield scale , rot, locs
 
-    def get_orientations(self, v):
-        orientations = defaultdict(list)
-        for transform in v:
-            loc, rot, scale = Matrix(transform).decompose()
-            scale = (scale[0], scale[1], scale[2])
-            orientations[scale].append(transform)
-        for orientation, transforms in orientations.items():
-            yield orientation, transforms
+        for scale , rot, locs in get_orientations(component_stats[(name, default_material)]):
+            verts = []
+            main_loc = Vector(locs[0])
+            for c in locs:
+                verts.append(Vector(c) - main_loc)
+            dme = bpy.data.meshes.new('DUPLI_' + name)
+            dme.vertices.add(len(verts))
+            dme.vertices.foreach_set("co", unpack_list(verts))
+            dme.update(calc_edges=True) # Update mesh with new data
+            dme.validate()
+            dob = bpy.data.objects.new("DUPLI_" + name, dme)
+            dob.location = main_loc
+            dob.dupli_type = 'VERTS'
+
+            ob = bpy.data.objects.new(name=name, object_data=None)
+            ob.dupli_type = 'GROUP'
+            ob.dupli_group = self.group_written[(name,default_material)]
+            ob.empty_draw_size = 0.01
+            ob.scale = scale
+            ob.rotation_quaternion = Quaternion((rot[0], rot[1], rot[2], rot[3]))
+            ob.parent = dob
+
+            self.context.scene.objects.link(ob)
+            self.context.scene.objects.link(dob)
+            sketchupLog("Complex group {} {} instanced {} times".format(name, default_material, len(verts)))
+        return
 
 
+    def instance_group_dupli_face(self, name, default_material, component_stats):
+        def get_orientations( v):
+            orientations = defaultdict(list)
+            for transform in v:
+                loc, rot, scale = Matrix(transform).decompose()
+                scale = (scale[0], scale[1], scale[2])
+                orientations[scale].append(transform)
+            for orientation, transforms in orientations.items():
+                yield orientation, transforms
 
-    def instance_group(self, name, default_material, component_stats):
-        for orientation, transforms in self.get_orientations(component_stats[(name, default_material)]):
+        for orientation, transforms in get_orientations(component_stats[(name, default_material)]):
+            scale_matrix = Matrix.Scale(1.0, 4, (-1 * orientation[0], -1 * orientation[1], -1 * orientation[2]))
             verts = []
             faces = []
             f_count = 0
             for c in transforms:
-                verts.append((Matrix(c) * Vector((-0.05, -0.05, 0, 1.0)))[0:3] )
-                verts.append((Matrix(c) * Vector(( 0.05, -0.05, 0, 1.0)))[0:3] )
-                verts.append((Matrix(c) * Vector((-0.05,  0.05, 0, 1.0)))[0:3] )
-                verts.append((Matrix(c) * Vector(( 0.05,  0.05, 0, 1.0)))[0:3] )
+                mat = scale_matrix * Matrix(c)
+                verts.append((mat * Vector((-0.05, -0.05, 0, 1.0)))[0:3] )
+                verts.append((mat * Vector(( 0.05, -0.05, 0, 1.0)))[0:3] )
+                verts.append((mat * Vector((-0.05,  0.05, 0, 1.0)))[0:3] )
+                verts.append((mat * Vector(( 0.05,  0.05, 0, 1.0)))[0:3] )
                 faces.append( (f_count + 0,  f_count + 1, f_count + 3, f_count + 2) )
                 f_count += 4
             dme = bpy.data.meshes.new('DUPLI_' + name)
@@ -517,7 +558,7 @@ class SceneImporter():
             ob.dupli_type = 'GROUP'
             ob.dupli_group = self.group_written[(name,default_material)]
             ob.empty_draw_size = 0.01
-            ob.scale = abs(orientation[0]), abs(orientation[1]), orientation[2]
+            #ob.scale = orientation[0], orientation[1], orientation[2]
             ob.parent = dob
             self.context.scene.objects.link(ob)
             self.context.scene.objects.link(dob)
@@ -530,16 +571,16 @@ class SceneImporter():
         ob = self.context.object
         ob.name = name
 
-        z = (mathutils.Vector(pos) - mathutils.Vector(target))
-        y = mathutils.Vector(up)
-        x = y.cross(z)
+        z = (Vector(pos) - Vector(target)).normalized()
+        y = Vector(up).normalized()
+        x = (y.cross(z)).normalized()
 
-        ob.matrix_world.col[0] = x.normalized().resized(4)
-        ob.matrix_world.col[1] = y.normalized().resized(4)
-        ob.matrix_world.col[2] = z.normalized().resized(4)
+        ob.matrix_world.col[0] = x.resized(4)
+        ob.matrix_world.col[1] = y.resized(4)
+        ob.matrix_world.col[2] = z.resized(4)
 
         cam = ob.data
-        cam.lens = camera.fov
+        cam.angle = pi * camera.fov / 180
         cam.clip_end = self.prefs.camera_far_plane
         cam.name = name
 
@@ -561,8 +602,15 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
     import_camera = BoolProperty(name="Camera", description="Import Active view as camera", default=True)
     reuse_material = BoolProperty(name="Use Existing Materials", description="Reuse scene materials", default=True)
     max_instance = IntProperty( name="Create DUPLI faces instance when count over", default=50)
+    dedub_type = EnumProperty(
+            name="Deduplication Type",
+            items=(('FACE', "Dupli Faces", ""),
+                   ('VERTEX', "Dupli Verts", ""),
+                   ),
+            default='FACE',
+            )
     dedub_only = BoolProperty(name="Groups Only", description="Import deduplicated groups only", default=False)
-    scenes_as_camera = BoolProperty(name="Camera", description="Import Active view as camera", default=True)
+    scenes_as_camera = BoolProperty(name="Scenes", description="Import Active view as camera", default=True)
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -579,6 +627,9 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row.prop(self, "reuse_material")
         row = layout.row(align=True)
         row.prop(self, "max_instance")
+        row.prop(self, "dedub_type")
+        row = layout.row(align=True)
+        row.prop(self, "scenes_as_camera")
         row.prop(self, "dedub_only")
 
 

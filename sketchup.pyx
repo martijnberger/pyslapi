@@ -234,10 +234,11 @@ cdef class Camera:
         check_result(SUCameraGetOrientation(self.camera, &position, &target, &up_vector))
         return (m(position.x), m(position.y), m(position.z)), \
                (m(target.x), m(target.y), m(target.z)), \
-               (up_vector.x, up_vector.y, up_vector.x)
+               (m(up_vector.x), m(up_vector.y), m(up_vector.x))
 
     property fov:
         def __get__(self):
+            #Retrieves the field of view in degrees of a camera object. The field of view is measured along the vertical direction of the camera.
             cdef double fov
             try:
                 check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
