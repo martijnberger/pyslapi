@@ -65,7 +65,6 @@ class proxy_dict(dict):
 
     def __getitem__(self, key):
         if key.lower().endswith("_proxy"):
-            print("KEY ", key)
             try:
                 return dict.__getitem__(self, key[:-6])
             except KeyError as e:
@@ -177,8 +176,6 @@ class SceneImporter():
 
         if options['import_camera']:
             for s in self.skp_model.scenes:
-                print(s.name)
-                print("#")
                 self.write_camera(s.camera, s.name)
             active_cam = self.write_camera(self.skp_model.camera)
             context.scene.camera = active_cam
@@ -189,7 +186,6 @@ class SceneImporter():
 
         t1 = time.time()
         for c in self.skp_model.component_definitions:
-            print(c.name)
             self.component_depth[c.name] = self.component_deps(c.entities)
         sketchupLog('analyzed component depths in %.4f sec' % (time.time() - t1))
 
@@ -570,14 +566,13 @@ class SceneImporter():
 
 
         for scale, transforms in get_orientations(component_stats[(name, default_material)]):
-            main_loc, rot, real_scale  = Matrix(transforms[0]).decompose()
-            #real_scale, real_rot = self.figure_out_sketchup_scaling(rot, scale)
-            scale_matrix = Matrix.Scale(1.0, 4, (real_scale)).inverted()
+            main_loc, _, real_scale  = Matrix(transforms[0]).decompose()
             verts = []
             faces = []
             f_count = 0
             for c in transforms:
-                mat = scale_matrix * Matrix(c)
+                l_loc, l_rot, l_scale = Matrix(c).decompose()
+                mat = Matrix.Translation(l_loc) * l_rot.to_matrix().to_4x4()
                 verts.append(Vector((mat * Vector((-0.05, -0.05, 0, 1.0)))[0:3]) - main_loc)
                 verts.append(Vector((mat * Vector(( 0.05, -0.05, 0, 1.0)))[0:3]) - main_loc)
                 verts.append(Vector((mat * Vector(( 0.05,  0.05, 0, 1.0)))[0:3]) - main_loc)
