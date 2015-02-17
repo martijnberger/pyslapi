@@ -61,7 +61,6 @@ class proxy_dict(dict):
     """
     def __init__(self, *args, **kwargs ):
         dict.__init__(self, *args, **kwargs )
-        print(self.keys())
 
     def __getitem__(self, key):
         if key.lower().endswith("_proxy"):
@@ -108,33 +107,6 @@ def inherent_default_mat(mat, default_material):
     return mat_name
 
 
-def figure_out_sketchup_scaling(transform):
-    loc, rotation, scale = transform.decompose()
-    if scale[0] < 0 and scale[1] < 0 and scale[2] < 0:
-        #print("seems we have flipped component", scale, rotation.to_euler())
-        euler = rotation.to_euler()
-        x_factor = 1.0
-        y_factor = 1.0
-        z_factor = 1.0
-        if 3.1415 < abs(euler.x) < 3.1417:
-            y_factor = -1.0
-            z_factor = -1.0
-            euler.x = 0
-        if 3.1415 < abs(euler.y) < 3.1417:
-            x_factor = -1.0
-            z_factor = -1.0
-            euler.y = 0
-        if 3.1415 < abs(euler.z) < 3.1417:
-            x_factor = -1.0
-            y_factor = -1.0
-            euler.z = 0
-        scale = x_factor * scale[0], y_factor * scale[1], z_factor * scale[2]
-        rot = euler.to_quaternion()
-        #print("real scale -> {}  rot ->  {}", scale, rot.to_euler())
-        return Matrix.Translation(loc) * rot.to_matrix().to_4x4() * Matrix.Scale(1, 4, scale )#= mat_loc * mat_rot * mat_sca
-    return transform
-
-
 class SceneImporter():
     def __init__(self):
         self.filepath = '/tmp/untitled.skp'
@@ -155,6 +127,7 @@ class SceneImporter():
         self.component_skip = proxy_dict()
         self.component_depth = proxy_dict()
         self.group_written ={}
+        self.aspect_ratio = context.scene.render.resolution_x / context.scene.render.resolution_y
 
         sketchupLog('importing skp %r' % self.filepath)
 
@@ -220,7 +193,7 @@ class SceneImporter():
             for k, v in component_stats.items():
                 name, mat = k
                 depth = self.component_depth[name]
-                print(k, len(v), depth)
+                #print(k, len(v), depth)
                 comp_def = self.skp_components[name]
                 if comp_def and depth == 1:
                     #self.component_skip[(name,mat)] = comp_def.entities
@@ -228,12 +201,12 @@ class SceneImporter():
                 elif comp_def and depth == i:
                     gname = group_name(name,mat)
                     if gname in bpy.data.groups:
-                        print("Group {} already defined".format(gname))
+                        #print("Group {} already defined".format(gname))
                         self.component_skip[(name,mat)] = comp_def.entities
                         self.group_written[(name,mat)] = bpy.data.groups[gname]
                     else:
                         group = bpy.data.groups.new(name=gname)
-                        print("Component written as group".format(gname))
+                        #print("Component written as group".format(gname))
                         self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
                         self.component_skip[(name,mat)] = comp_def.entities
                         self.group_written[(name,mat)] = group
@@ -607,16 +580,22 @@ class SceneImporter():
         ob = self.context.object
         ob.name = name
 
-        z = (Vector(pos) - Vector(target)).normalized()
-        y = Vector(up).normalized()
-        x = (y.cross(z)).normalized()
+        z = (Vector(pos) - Vector(target))
+        x = Vector(up).cross(z)
+        y = z.cross(x)
+
+
+        x.normalize()
+        y.normalize()
+        z.normalize()
 
         ob.matrix_world.col[0] = x.resized(4)
         ob.matrix_world.col[1] = y.resized(4)
         ob.matrix_world.col[2] = z.resized(4)
 
         cam = ob.data
-        cam.angle = pi * camera.fov / 180
+        aspect_ratio = camera.aspect_ratio if camera.aspect_ratio else self.aspect_ratio
+        cam.angle = (pi * camera.fov / 180 ) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
         cam.name = name
 

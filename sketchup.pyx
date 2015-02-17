@@ -53,7 +53,7 @@ class keep_offset(defaultdict):
         self[item] = number
         return number
 
-cdef double m(double v):
+cdef inline double m(double& v):
     """
     :param v: value to be converted from inches to meters
     :return: value in meters
@@ -230,22 +230,44 @@ cdef class Camera:
     def GetOrientation(self):
         cdef SUPoint3D position
         cdef SUPoint3D target
-        cdef SUVector3D up_vector
+        cdef SUVector3D up_vector = [0,0,0]
         check_result(SUCameraGetOrientation(self.camera, &position, &target, &up_vector))
         return (m(position.x), m(position.y), m(position.z)), \
                (m(target.x), m(target.y), m(target.z)), \
-               (m(up_vector.x), m(up_vector.y), m(up_vector.x))
+               (m(up_vector.x), m(up_vector.y), m(up_vector.z))
 
     property fov:
         def __get__(self):
             #Retrieves the field of view in degrees of a camera object. The field of view is measured along the vertical direction of the camera.
             cdef double fov
-            try:
-                check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
-            except IOError as e:
-                fov = 55
-            return fov
+            cdef SU_RESULT res = SUCameraGetPerspectiveFrustumFOV(self.camera, &fov)
+            if res == SU_ERROR_NONE:
+                return fov
+            return 55.0
 
+    property perspective:
+        def __get__(self):
+            cdef bool p
+            cdef SU_RESULT call_res = SUCameraGetPerspective(self.camera, &p)
+            if call_res == SU_ERROR_NONE:
+                return p
+            return False
+
+    property scale:
+        def __get__(self):
+            cdef double height = 0
+            cdef SU_RESULT res = SUCameraGetOrthographicFrustumHeight(self.camera, &height)
+            if res == SU_ERROR_NONE:
+                return height
+            return 1.0
+
+    property aspect_ratio:
+        def __get__(self):
+            cdef double asp = 1.0
+            cdef SU_RESULT res = SUCameraGetAspectRatio(self.camera, &asp)
+            if res == SU_ERROR_NONE:
+                return asp
+            return False
 
 
 
