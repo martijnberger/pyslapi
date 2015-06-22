@@ -326,11 +326,11 @@ class SceneImporter():
 
             for face in tri:
                 f0, f1, f2 = face[0], face[1], face[2]
-                if f2 == 0: ## eeekadoodle dance
-                    faces.append( ( mapping[f1], mapping[f2], mapping[f0] ) )
+                if mapping[f2] == 0 : ## eeekadoodle dance
+                    faces.append( ( mapping[f2], mapping[f0], mapping[f1] ) )
                     uv_list.append(( uvs[f2][0], uvs[f2][1],
-                                     uvs[f1][0], uvs[f1][1],
                                      uvs[f0][0], uvs[f0][1],
+                                     uvs[f1][0], uvs[f1][1],
                                      0, 0 ) )
                 else:
                     faces.append( ( mapping[f0], mapping[f1], mapping[f2] ) )
