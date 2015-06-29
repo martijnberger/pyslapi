@@ -187,7 +187,7 @@ class SceneImporter():
     def write_duplicateable_groups(self):
         component_stats = self.analyze_entities(self.skp_model.entities, "Sketchup", Matrix.Identity(4), component_stats=defaultdict(list))
         instance_when_over = self.max_instance
-        max_depth = max(self.component_depth.values())
+        max_depth = max(self.component_depth.values(), default=0)
         component_stats = { k : v for k,v in component_stats.items() if len(v) >= instance_when_over }
         for i in range(max_depth + 1):
             for k, v in component_stats.items():
