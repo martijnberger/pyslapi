@@ -514,7 +514,7 @@ cdef class Face:
             for i in range(got_vertex_count):
                 vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
             for i in range(got_stq_count):
-                uv_list.append((stq[i].x, stq[i].y))
+                uv_list.append((stq[i].x / stq[i].z, stq[i].y / stq[i].z))
             triangles_list = []
             for ii in range(index_count / 3):
                 i = ii * 3
