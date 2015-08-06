@@ -279,7 +279,7 @@ class SceneImporter():
                 bmat.use_nodes = True
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
-                    tmp_name = tempfile.gettempdir() + os.pathsep + tex_name
+                    tmp_name = os.path.join(tempfile.gettempdir() , tex_name)
                     #sketchupLog("Texture saved temporarily as {}".format(tmp_name))
                     tex.write(tmp_name)
                     img = bpy.data.images.load(tmp_name)
