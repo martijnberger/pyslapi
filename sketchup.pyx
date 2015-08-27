@@ -295,6 +295,16 @@ cdef class Texture:
                 return StringRef2Py(n)
             return ""
 
+    property dimensions:
+        def __get__(self):
+            cdef double s_scale = 1.0
+            cdef double t_scale = 1.0
+            cdef size_t width = 0
+            cdef size_t height = 0
+            cdef SUMaterialRef mat
+            check_result(SUTextureGetDimensions(self.tex_ref,&width,&height,&s_scale,&t_scale))
+            return width, height, s_scale, t_scale
+
 
 cdef class Instance:
     cdef SUComponentInstanceRef instance
@@ -508,6 +518,7 @@ cdef class Face:
             cdef SUPoint3D* stq = <SUPoint3D*>malloc(sizeof(SUPoint3D) * vertex_count)
             cdef size_t got_stq_count = 0
             check_result(SUMeshHelperGetFrontSTQCoords(mesh_ref, vertex_count, stq, &got_stq_count))
+
 
             vertices_list = []
             uv_list = []
