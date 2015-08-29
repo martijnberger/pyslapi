@@ -256,6 +256,7 @@ class SceneImporter():
             self.context.scene.render.engine = 'CYCLES'
 
         self.materials = {}
+        self.materials_scales = {}
         if self.reuse_material and 'Material' in bpy.data.materials:
             self.materials['Material'] = bpy.data.materials['Material']
         else:
@@ -268,6 +269,13 @@ class SceneImporter():
         for mat in materials:
 
             name = mat.name
+
+            if mat.texture:
+                self.materials_scales[name] = mat.texture.dimensions[2:]
+            else:
+                self.materials_scales[name] = (1.0, 1.0)
+
+
 
             if self.reuse_material and not name in bpy.data.materials:
                 bmat = bpy.data.materials.new(name)
@@ -307,13 +315,15 @@ class SceneImporter():
 
 
         for f in entities.faces:
-            vs, tri, uvs = f.tessfaces
 
             if f.material:
                 mat_number = mats[f.material.name]
             else:
                 mat_number = mats[default_material]
+                if default_material != 'Material':
+                    f.st_scale = self.materials_scales[default_material]
 
+            vs, tri, uvs = f.tessfaces
 
             mapping = {}
             for i, (v, uv) in enumerate(zip(vs, uvs)):

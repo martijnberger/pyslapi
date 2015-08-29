@@ -305,6 +305,12 @@ cdef class Texture:
             check_result(SUTextureGetDimensions(self.tex_ref,&width,&height,&s_scale,&t_scale))
             return width, height, s_scale, t_scale
 
+    property use_alpha_channel:
+        def __get__(self):
+            cdef bool alpha_channel_used
+            check_result(SUTextureGetUseAlphaChannel(self.tex_ref, &alpha_channel_used))
+            return alpha_channel_used
+
 
 cdef class Instance:
     cdef SUComponentInstanceRef instance
@@ -373,7 +379,6 @@ cdef class Instance:
             cdef bool hide_flag = False
             check_result(SUDrawingElementGetHidden(draw_elem, &hide_flag))
             return hide_flag
-
 
 
 cdef instance_from_ptr(SUComponentInstanceRef r):
@@ -495,10 +500,22 @@ cdef class Entity:
 
 cdef class Face:
     cdef SUFaceRef face_ref
+    cdef double s_scale
+    cdef double t_scale
+
 
     def __cinit__(self):
         self.face_ref.ptr = <void *> 0
+        self.s_scale = 1.0
+        self.t_scale = 1.0
 
+    property st_scale:
+        def __set__(self, v):
+            self.s_scale = v[0]
+            self.t_scale = v[1]
+
+        def __get__(self):
+            return self.s_scale, self.t_scale
 
     property tessfaces:
         def __get__(self):
@@ -525,7 +542,7 @@ cdef class Face:
             for i in range(got_vertex_count):
                 vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
             for i in range(got_stq_count):
-                uv_list.append((stq[i].x / stq[i].z, stq[i].y / stq[i].z))
+                uv_list.append((stq[i].x / stq[i].z * self.s_scale, stq[i].y / stq[i].z * self.t_scale))
             triangles_list = []
             for ii in range(index_count / 3):
                 i = ii * 3

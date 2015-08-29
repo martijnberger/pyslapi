@@ -14,8 +14,8 @@ if platform.system() == 'Linux':
     extra_link_args=['-Lbinaries/x86-64']
 elif platform.system() == 'Darwin': # OS x
     libraries=[]
-    extra_compile_args=['-F.']
-    extra_link_args=['-F','.','-framework','slapi']
+    extra_compile_args=['-mmacosx-version-min=10.8', '-F.']
+    extra_link_args=['-mmacosx-version-min=10.8', '-F','.','-framework','slapi']
 else:
     libraries=["slapi"]
     extra_compile_args=['/Zp8']
