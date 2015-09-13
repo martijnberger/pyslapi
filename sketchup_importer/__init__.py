@@ -91,8 +91,6 @@ def sketchupLog(*args):
         log(' '.join(['%s'%a for a in args]), module_name='Sketchup')
 
 
-
-
 def group_name(name, material):
     if material != default_material_name:
         return "{}_{}".format(name,material)
@@ -303,7 +301,9 @@ class SceneImporter():
 
 
 
-    def write_mesh_data(self, entities, name, default_material='Material'):
+    def write_mesh_data(self, entities=None, name="", default_material='Material'):
+        if (name,default_material) in self.component_meshes:
+            return self.component_meshes[(name,default_material)]
         verts = []
         faces = []
         mat_index = []
@@ -389,17 +389,11 @@ class SceneImporter():
         return me, alpha
 
     def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
-        if type=="Component":
-            if (name,default_material) in self.component_skip:
-                self.component_stats[(name,default_material)].append(parent_tranform)
-                return
-            if (name,default_material) in self.component_meshes:
-                me, alpha = self.component_meshes[(name,default_material)]
-            else:
-                me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
-                self.component_meshes[(name,default_material)] = (me, alpha)
-        else:
-            me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
+        if type=="Component" and (name,default_material) in self.component_skip:
+            self.component_stats[(name,default_material)].append(parent_tranform)
+            return
+
+        me, alpha = self.write_mesh_data(entities=entities, name=name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
@@ -428,7 +422,6 @@ class SceneImporter():
                                 parent_tranform * Matrix(instance.transform),
                                 default_material=mat_name,
                                 type="Component")
-        return
 
 
     def instance_object_or_group(self, name, default_material):
@@ -454,21 +447,15 @@ class SceneImporter():
             else:
                 sketchupLog("Write instance definition as group {} {}".format(group.name, default_material))
                 self.component_skip[(name, default_material)] = True
-        if type == "Component":
-            if (name,default_material) in self.component_skip:
-                ob = self.instance_object_or_group(name,default_material)
-                ob.matrix_world = parent_tranform
-                self.context.scene.objects.link(ob)
-                ob.layers = 18 * [False] + [True] + [False]
-                group.objects.link(ob)
-                return
-            if (name,default_material) in self.component_meshes:
-                me, alpha = self.component_meshes[(name,default_material)]
-            else:
-                me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
-                self.component_meshes[(name,default_material)] = (me, alpha)
+        if type == "Component" and (name,default_material) in self.component_skip:
+            ob = self.instance_object_or_group(name,default_material)
+            ob.matrix_world = parent_tranform
+            self.context.scene.objects.link(ob)
+            ob.layers = 18 * [False] + [True] + [False]
+            group.objects.link(ob)
+            return
         else:
-            me, alpha = self.write_mesh_data(entities, name, default_material=default_material)
+            me, alpha = self.write_mesh_data(entities=entities, name=name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
@@ -593,7 +580,6 @@ class SceneImporter():
         z = (Vector(pos) - Vector(target))
         x = Vector(up).cross(z)
         y = z.cross(x)
-
 
         x.normalize()
         y.normalize()
