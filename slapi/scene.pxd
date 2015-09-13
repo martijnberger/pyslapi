@@ -16,3 +16,11 @@ cdef extern from "slapi/model/scene.h":
     SU_RESULT SUSceneGetShadowInfo(SUSceneRef scene, SUShadowInfoRef* shadow_info)
     SU_RESULT SUSceneGetUseShadowInfo(SUSceneRef scene, bool* use_shadow_info)
     SU_RESULT SUSceneSetUseShadowInfo(SUSceneRef scene, bool use_shadow_info)
+
+cdef extern from "slapi/model/rendering_options.h":
+    SU_RESULT SURenderingOptionsGetValue(SURenderingOptionsRef rendering_options, const char* key, SUTypedValueRef* value_out)
+    SU_RESULT SURenderingOptionsSetValue(SURenderingOptionsRef rendering_options, const char* key, SUTypedValueRef value_in)
+
+
+cdef extern from "slapi/model/attribute_dictionary.h":
+    SU_RESULT SUAttributeDictionaryGetNumKeys (SUAttributeDictionaryRef dictionary, size_t *count)

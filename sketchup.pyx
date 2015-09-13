@@ -10,8 +10,10 @@ from slapi.slapi cimport *
 from slapi.initialize cimport *
 from slapi.defs cimport *
 from slapi.drawing_element cimport *
+from slapi.entities cimport *
 from slapi.unicodestring cimport *
 from slapi.entities cimport *
+from slapi.entity cimport *
 from slapi.camera cimport *
 from slapi.model cimport *
 from slapi.component cimport *
@@ -135,6 +137,25 @@ cdef SUStringRef Py2StringRef(s):
         raise TypeError("Cannot make sense of string {}".format(s))
     return out_string_ref
 
+cdef class Entity:
+    cdef SUEntityRef entity
+
+    def __cinit__(self):
+        self.entity.ptr = <void*>0
+
+    property id:
+        def __get__(self):
+            cdef int32_t entity_id
+            check_result(SUEntityGetID(self.entity, &entity_id))
+            return entity_id
+
+    def __len__(self):
+        cdef size_t count
+        check_result(SUEntityGetNumAttributeDictionaries(self.entity, &count))
+        return count
+
+
+
 cdef class Point2D:
     cdef SUPoint2D p
 
@@ -240,34 +261,38 @@ cdef class Camera:
         def __get__(self):
             #Retrieves the field of view in degrees of a camera object. The field of view is measured along the vertical direction of the camera.
             cdef double fov
-            cdef SU_RESULT res = SUCameraGetPerspectiveFrustumFOV(self.camera, &fov)
-            if res == SU_ERROR_NONE:
-                return fov
-            return 55.0
+            check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
+            return fov
+
+        def __set__(self, double fov):
+            check_result(SUCameraSetPerspectiveFrustumFOV(self.camera, fov))
 
     property perspective:
         def __get__(self):
             cdef bool p
-            cdef SU_RESULT call_res = SUCameraGetPerspective(self.camera, &p)
-            if call_res == SU_ERROR_NONE:
-                return p
-            return False
+            check_result(SUCameraGetPerspective(self.camera, &p))
+            return p
+
+        def __set__(self, bool p):
+            check_result(SUCameraSetPerspective(self.camera, p))
 
     property scale:
         def __get__(self):
             cdef double height = 0
-            cdef SU_RESULT res = SUCameraGetOrthographicFrustumHeight(self.camera, &height)
-            if res == SU_ERROR_NONE:
-                return height
-            return 1.0
+            check_result(SUCameraGetOrthographicFrustumHeight(self.camera, &height))
+            return height
+
+        def __set__(self, double height):
+            check_result(SUCameraSetOrthographicFrustumHeight(self.camera, height))
 
     property aspect_ratio:
         def __get__(self):
             cdef double asp = 1.0
-            cdef SU_RESULT res = SUCameraGetAspectRatio(self.camera, &asp)
-            if res == SU_ERROR_NONE:
-                return asp
-            return False
+            check_result(SUCameraGetAspectRatio(self.camera, &asp))
+            return asp
+
+        def __set__(self, double asp):
+            check_result(SUCameraSetAspectRatio(self.camera, asp))
 
 
 
@@ -488,14 +513,6 @@ cdef class Group:
     def __repr__(self):
         return "Group {} \n\ttransform {}".format(self.name, self.transform)
 
-
-
-
-cdef class Entity:
-    cdef SUEntityRef entity
-
-    def __cinit__(self):
-        pass
 
 
 cdef class Face:
@@ -746,6 +763,13 @@ cdef class Material:
             else:
                 return False
 
+cdef class RenderingOptions:
+    cdef SURenderingOptionsRef options
+
+    def __cinit__(self):
+        self.options.ptr = <void *> 0
+
+
 cdef class Scene:
     cdef SUSceneRef scene
 
@@ -767,6 +791,21 @@ cdef class Scene:
             check_result(SUSceneGetCamera(self.scene, &c))
             res = Camera()
             res.set_ptr(c.ptr)
+            return res
+
+    property rendering_options:
+        def __get__(self):
+            cdef SURenderingOptionsRef options
+            options.ptr = <void*> 0
+            check_result(SUSceneGetRenderingOptions(self.scene, &options))
+            res = RenderingOptions()
+            res.options = options
+            return res
+
+    property entity:
+        def __get__(self):
+            res = Entity()
+            res.entity = SUSceneToEntity(self.scene)
             return res
 
 
