@@ -291,8 +291,6 @@ cdef class Camera:
             check_result(SUCameraGetAspectRatio(self.camera, &asp))
             return asp
 
-        def __set__(self, double asp):
-            check_result(SUCameraSetAspectRatio(self.camera, asp))
 
 
 
@@ -301,9 +299,6 @@ cdef class Texture:
 
     def __cinit__(self):
         self.tex_ref.ptr = <void *> 0
-
-    def __dealloc__(self):
-        pass
 
     def write(self, filename):
         py_byte_string = filename.encode('UTF-8')
@@ -315,10 +310,9 @@ cdef class Texture:
             cdef SUStringRef n
             n.ptr = <void*>0
             SUStringCreate(&n)
-            cdef res = SUTextureGetFileName(self.tex_ref, &n)
-            if res == SU_ERROR_NONE:
-                return StringRef2Py(n)
-            return ""
+            check_result(SUTextureGetFileName(self.tex_ref, &n))
+            return StringRef2Py(n)
+
 
     property dimensions:
         def __get__(self):
@@ -343,20 +337,14 @@ cdef class Instance:
     def __cinit__(self):
         self.instance.ptr = <void *> 0
 
-    def __dealloc__(self):
-        pass
-        #print("~Instance {} ".format(hex(<int> self.instance.ptr)))
-
     property name:
         def __get__(self):
             cdef SUStringRef n
             n.ptr = <void*>0
             SUStringCreate(&n)
-            cdef res = SUComponentInstanceGetName(self.instance, &n)
-            if res == SU_ERROR_NONE:
-                return StringRef2Py(n)
-            else:
-                return "NONAME-INSTANCE"
+            check_result(SUComponentInstanceGetName(self.instance, &n))
+            return StringRef2Py(n)
+
 
     property entity:
         def __get__(self):
@@ -390,13 +378,11 @@ cdef class Instance:
             cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
             cdef SUMaterialRef mat
             mat.ptr = <void*> 0
-            cdef SU_RESULT res = SUDrawingElementGetMaterial(draw_elem, &mat)
-            if res == SU_ERROR_NONE:
-                m = Material()
-                m.material.ptr = mat.ptr
-                return m
-            else:
-                return None
+            check_result(SUDrawingElementGetMaterial(draw_elem, &mat))
+            m = Material()
+            m.material.ptr = mat.ptr
+            return m
+
 
     property hidden:
         def __get__(self):
@@ -404,6 +390,10 @@ cdef class Instance:
             cdef bool hide_flag = False
             check_result(SUDrawingElementGetHidden(draw_elem, &hide_flag))
             return hide_flag
+
+        def __set__(self, bool hide_flag):
+            cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
+            check_result(SUDrawingElementSetHidden(draw_elem, hide_flag))
 
 
 cdef instance_from_ptr(SUComponentInstanceRef r):
