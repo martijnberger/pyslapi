@@ -17,8 +17,8 @@ __license__ = "GPL"
 bl_info = {
     "name": "Sketchup importer",
     "author": "Martijn Berger",
-    "version": (0, 0, 2, 'dev'),
-    "blender": (2, 7, 3),
+    "version": (0, 1, 3, 'dev'),
+    "blender": (2, 7, 5),
     "description": "import/export Sketchup skp files",
     "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
@@ -110,6 +110,8 @@ class SceneImporter():
         self.filepath = '/tmp/untitled.skp'
         self.name_mapping = {}
         self.component_meshes = {}
+        self.scene = None
+        self.layers_skip = None
 
     def set_filename(self, filename):
         self.filepath = filename
@@ -141,15 +143,35 @@ class SceneImporter():
             sketchupLog(e)
             return {'FINISHED'}
 
+
+        if options['import_scene']:
+            for s in self.skp_model.scenes:
+                if s.name == options['import_scene']:
+                    sketchupLog("Importing Scene \"{}\" ".format(s.name))
+                    self.scene = s
+                    self.layers_skip = [l for l in s.layers]
+                    for l in s.layers:
+                        sketchupLog("SKIP: {}".format(l.name))
+            if not self.layers_skip:
+                sketchupLog('Could not find scene {} importing default'.format(options['import_scene']))
+
+
+
         self.skp_components = proxy_dict(self.skp_model.component_definition_as_dict)
 
         sketchupLog('parsed skp %r in %.4f sec.' % (self.filepath, (time.time() - time_main)))
 
-        if options['import_camera']:
+        if options['scenes_as_camera']:
             for s in self.skp_model.scenes:
                 self.write_camera(s.camera, s.name)
-            active_cam = self.write_camera(self.skp_model.camera)
-            context.scene.camera = active_cam
+
+        if options['import_camera']:
+            if self.scene:
+                active_cam = self.write_camera(self.scene.camera, name=self.scene.name)
+                context.scene.camera = active_cam
+            else:
+                active_cam = self.write_camera(self.skp_model.camera)
+                context.scene.camera = active_cam
 
         t1 = time.time()
         self.write_materials(self.skp_model.materials)
@@ -215,10 +237,14 @@ class SceneImporter():
 
         group_depth = 0
         for group in entities.groups:
+            if self.layers_skip and group.layer in self.layers_skip:
+                continue
             group_depth = max( group_depth, self.component_deps( group.entities, comp=False))
 
         instance_depth = 0
         for instance in entities.instances:
+            if self.layers_skip and instance.layer in self.layers_skip:
+                continue
             instance_depth = max(instance_depth, 1 + self.component_deps(instance.definition.entities))
 
         return max(own_depth, group_depth, instance_depth)
@@ -229,6 +255,8 @@ class SceneImporter():
             component_stats[(name,default_material)].append(transform)
 
         for group in entities.groups:
+            if self.layers_skip and group.layer in self.layers_skip:
+                continue
             self.analyze_entities(group.entities,
                                   "G-" + group.name,
                                   transform * Matrix(group.transform),
@@ -237,6 +265,8 @@ class SceneImporter():
                                   component_stats=component_stats)
 
         for instance in entities.instances:
+            if self.layers_skip and instance.layer in self.layers_skip:
+                continue
             mat = inherent_default_mat(instance.material, default_material)
             cdef = self.skp_components[instance.definition.name]
             if (cdef.name,mat) in component_skip:
@@ -406,6 +436,8 @@ class SceneImporter():
         for group in entities.groups:
             if group.hidden:
                 continue
+            if self.layers_skip and group.layer in self.layers_skip:
+                continue
             self.write_entities(group.entities,
                                 "G-" + group.name,
                                 parent_tranform * Matrix(group.transform),
@@ -414,6 +446,8 @@ class SceneImporter():
 
         for instance in entities.instances:
             if instance.hidden:
+                continue
+            if self.layers_skip and instance.layer in self.layers_skip:
                 continue
             mat_name = inherent_default_mat(instance.material, default_material)
             cdef = self.skp_components[instance.definition.name]
@@ -468,6 +502,8 @@ class SceneImporter():
             group.objects.link(ob)
 
         for g in entities.groups:
+            if self.layers_skip and g.layer in self.layers_skip:
+                continue
             self.conponent_definition_as_group(g.entities,
                                 "G-" + g.name,
                                 parent_tranform * Matrix(g.transform),
@@ -476,6 +512,8 @@ class SceneImporter():
                                 group=group)
 
         for instance in entities.instances:
+            if self.layers_skip and instance.layer in self.layers_skip:
+                continue
             cdef = self.skp_components[instance.definition.name]
             self.conponent_definition_as_group(cdef.entities,
                                 cdef.name,
@@ -590,7 +628,10 @@ class SceneImporter():
         ob.matrix_world.col[2] = z.resized(4)
 
         cam = ob.data
-        aspect_ratio = camera.aspect_ratio if camera.aspect_ratio else self.aspect_ratio
+        try:
+            aspect_ratio = camera.aspect_ratio
+        except RuntimeError:
+            aspect_ratio = self.aspect_ratio
         cam.angle = (pi * camera.fov / 180 ) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
         cam.name = name
@@ -622,6 +663,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
             )
     dedub_only = BoolProperty(name="Groups Only", description="Import deduplicated groups only", default=False)
     scenes_as_camera = BoolProperty(name="Scenes", description="Import Active view as camera", default=True)
+    import_scene = StringProperty(name="Import Scene", description="Name of the Sketchup scene to import", default="")
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -642,6 +684,8 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row = layout.row(align=True)
         row.prop(self, "scenes_as_camera")
         row.prop(self, "dedub_only")
+        row = layout.row(align=True)
+        row.prop(self, "import_scene")
 
 
 def menu_func_import(self, context):

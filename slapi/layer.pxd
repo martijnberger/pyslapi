@@ -3,7 +3,7 @@ from libcpp cimport bool
 from .defs cimport *
 from .unicodestring cimport *
 
-cdef extern from "slapi/model/layer.h":
+cdef extern from "SketchUpAPI/model/layer.h":
     SUEntityRef SULayerToEntity(SULayerRef layer)
     SULayerRef SULayerFromEntity(SUEntityRef entity)
     SU_RESULT SULayerCreate(SULayerRef* layer)

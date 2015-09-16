@@ -3,7 +3,7 @@ from libcpp cimport bool
 from .defs cimport *
 from .geometry cimport *
 
-cdef extern from "slapi/model/camera.h":
+cdef extern from "SketchUpAPI/model/camera.h":
 
     SU_RESULT SUCameraCreate(SUCameraRef* camera)
     SU_RESULT SUCameraRelease(SUCameraRef* camera)

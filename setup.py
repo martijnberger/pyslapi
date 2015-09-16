@@ -9,15 +9,15 @@ import platform
 
 
 if platform.system() == 'Linux':
-    libraries = ["slapi"]
+    libraries = ["SketchUpAPI"]
     extra_compile_args=[]
     extra_link_args=['-Lbinaries/x86-64']
 elif platform.system() == 'Darwin': # OS x
     libraries=[]
     extra_compile_args=['-mmacosx-version-min=10.8', '-F.']
-    extra_link_args=['-mmacosx-version-min=10.8', '-F','.','-framework','slapi']
+    extra_link_args=['-mmacosx-version-min=10.8', '-F','.','-framework','SketchUpAPI']
 else:
-    libraries=["slapi"]
+    libraries=["SketchUpAPI"]
     extra_compile_args=['/Zp8']
     extra_link_args=['/LIBPATH:binaries/x64/']
 
@@ -35,4 +35,4 @@ setup(
     embedsignature=True
     )]
     )
-#install_name_tool -change "@rpath/slapi.framework/Versions/Current/slapi" "@loader_path/slapi.framework/Versions/Current/slapi" sketchup.so
+#install_name_tool -change "@rpath/SketchUpAPI.framework/Versions/Current/SketchUpAPI" "@loader_path/SketchUpAPI.framework/Versions/Current/SketchUpAPI" sketchup.so

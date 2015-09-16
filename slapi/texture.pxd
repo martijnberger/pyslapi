@@ -4,7 +4,7 @@ from .defs cimport *
 from .unicodestring cimport *
 from .geometry cimport *
 
-cdef extern from "slapi/model/texture.h":
+cdef extern from "SketchUpAPI/model/texture.h":
     SUEntityRef SUTextureToEntity(SUTextureRef texture)
     SUTextureRef SUTextureFromEntity(SUEntityRef entity)
     SU_RESULT SUTextureCreateFromImageData(SUTextureRef* texture, size_t width, size_t height, size_t bits_per_pixel, SUByte pixel_data[])
@@ -17,7 +17,7 @@ cdef extern from "slapi/model/texture.h":
     SU_RESULT SUTextureGetFileName(SUTextureRef texture,  SUStringRef* file_name)
     SU_RESULT SUTextureGetUseAlphaChannel(SUTextureRef texture, bool* alpha_channel_used)
 
-cdef extern from "slapi/model/texture_writer.h":
+cdef extern from "SketchUpAPI/model/texture_writer.h":
     SU_RESULT SUTextureWriterCreate(SUTextureWriterRef* writer)
     SU_RESULT SUTextureWriterRelease(SUTextureWriterRef* writer)
     SU_RESULT SUTextureWriterLoadEntity(SUTextureWriterRef writer, SUEntityRef entity, long* texture_id)

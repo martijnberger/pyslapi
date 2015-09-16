@@ -3,7 +3,7 @@ from .defs cimport *
 from .unicodestring cimport *
 
 
-cdef extern from "slapi/slapi.h":
+cdef extern from "SketchUpAPI/slapi.h":
     cdef enum SUResult:
         SU_ERROR_NONE = 0               #Indicates success
         SU_ERROR_NULL_POINTER_INPUT     # A pointer for a required input was NULL.

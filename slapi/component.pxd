@@ -4,7 +4,7 @@ from .defs cimport *
 from .unicodestring cimport *
 from .geometry cimport *
 
-cdef extern from "slapi/model/component_definition.h":
+cdef extern from "SketchUpAPI/model/component_definition.h":
     cdef enum SUSnapToBehavior:
             SUSnapToBehavior_None = 0,
             SUSnapToBehavior_Any,
@@ -34,7 +34,7 @@ cdef extern from "slapi/model/component_definition.h":
     SU_RESULT SUComponentDefinitionApplySchemaType(SUComponentDefinitionRef comp_def,SUSchemaRef schema_ref, SUSchemaTypeRef schema_type_ref)
 
 
-cdef extern from "slapi/model/component_instance.h":
+cdef extern from "SketchUpAPI/model/component_instance.h":
     SUEntityRef SUComponentInstanceToEntity(SUComponentInstanceRef instance)
     SUComponentInstanceRef SUComponentInstanceFromEntity(SUEntityRef entity)
     SUDrawingElementRef SUComponentInstanceToDrawingElement(SUComponentInstanceRef instance)

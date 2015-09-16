@@ -4,7 +4,7 @@ from .defs cimport *
 from .unicodestring cimport *
 from .geometry cimport *
 
-cdef extern from "slapi/model/entities.h":
+cdef extern from "SketchUpAPI/model/entities.h":
     SU_RESULT SUEntitiesFill(SUEntitiesRef entities, SUGeometryInputRef geom_input, bool weld_vertices)
     SU_RESULT SUEntitiesGetBoundingBox(SUEntitiesRef entities, SUBoundingBox3D* bbox)
     SU_RESULT SUEntitiesGetNumFaces(SUEntitiesRef entities, size_t* count)

@@ -3,14 +3,14 @@ from libcpp cimport bool
 from .defs cimport *
 from .unicodestring cimport *
 
-cdef extern from "slapi/color.h":
+cdef extern from "SketchUpAPI/color.h":
     ctypedef struct SUColor:
         SUByte red,
         SUByte green,
         SUByte blue,
         SUByte alpha
 
-cdef extern from "slapi/model/material.h":
+cdef extern from "SketchUpAPI/model/material.h":
     cdef enum SUMaterialType:
         SUMaterialType_Colored = 0, # Colored material
         SUMaterialType_Textured,    # Textured material

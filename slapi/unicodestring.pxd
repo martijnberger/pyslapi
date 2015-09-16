@@ -4,7 +4,7 @@ from libc.stddef cimport wchar_t
 from .defs cimport *
 
 ctypedef wchar_t unichar
-cdef extern from "slapi/unicodestring.h":
+cdef extern from "SketchUpAPI/unicodestring.h":
     ctypedef struct SUStringRef:
         void *ptr
 

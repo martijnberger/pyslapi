@@ -4,7 +4,7 @@ from .defs cimport *
 from .geometry cimport *
 from .unicodestring cimport *
 
-cdef extern from "slapi/model/model.h":
+cdef extern from "SketchUpAPI/model/model.h":
     enum SUEntityType "SUModelStatistics::SUEntityType":
         SUEntityType_Edge = 0,
         SUEntityType_Face
@@ -76,7 +76,7 @@ cdef extern from "slapi/model/model.h":
     SU_RESULT SUModelGetUnits(SUModelRef model, SUModelUnits* units)
     SU_RESULT SUModelGetClassifications(SUModelRef model, SUClassificationsRef* classifications)
 
-cdef extern from "slapi/model/face.h":
+cdef extern from "SketchUpAPI/model/face.h":
     SUEntityRef SUFaceToEntity(SUFaceRef face)
     SUFaceRef SUFaceFromEntity(SUEntityRef entity)
     SUDrawingElementRef SUFaceToDrawingElement(SUFaceRef face)
@@ -108,7 +108,7 @@ cdef extern from "slapi/model/face.h":
     SU_RESULT SUFaceGetUVHelperWithTextureHandle(SUFaceRef face,  bool front, bool back, SUTextureWriterRef texture_writer, long textureHandle,  SUUVHelperRef* uv_helper)
 
 
-cdef extern from  "slapi/model/mesh_helper.h":
+cdef extern from  "SketchUpAPI/model/mesh_helper.h":
     SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
     SU_RESULT SUMeshHelperCreateWithTextureWriter(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUTextureWriterRef texture_writer_ref)
     SU_RESULT SUMeshHelperCreateWithUVHelper(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUUVHelperRef uv_helper_ref)
@@ -120,3 +120,18 @@ cdef extern from  "slapi/model/mesh_helper.h":
     SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
     SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
     SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
+
+
+cdef extern from "SketchUpAPI/model/mesh_helper.h":
+    SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
+    SU_RESULT SUMeshHelperCreateWithTextureWriter(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUTextureWriterRef texture_writer_ref)
+    SU_RESULT SUMeshHelperCreateWithUVHelper(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUUVHelperRef uv_helper_ref)
+    SU_RESULT SUMeshHelperRelease(SUMeshHelperRef* mesh_ref)
+    SU_RESULT SUMeshHelperGetNumTriangles(SUMeshHelperRef mesh_ref, size_t* count)
+    SU_RESULT SUMeshHelperGetNumVertices(SUMeshHelperRef mesh_ref, size_t* count)
+    SU_RESULT SUMeshHelperGetVertexIndices(SUMeshHelperRef mesh_ref, size_t len, size_t indices[], size_t* count)
+    SU_RESULT SUMeshHelperGetVertices(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D vertices[], size_t* count)
+    SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+    SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
+    SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
+

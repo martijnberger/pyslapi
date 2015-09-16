@@ -23,21 +23,6 @@ from slapi.texture cimport *
 from slapi.scene cimport *
 from slapi.layer cimport *
 
-cdef extern from "slapi/model/mesh_helper.h":
-    SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
-    SU_RESULT SUMeshHelperCreateWithTextureWriter(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUTextureWriterRef texture_writer_ref)
-    SU_RESULT SUMeshHelperCreateWithUVHelper(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUUVHelperRef uv_helper_ref)
-    SU_RESULT SUMeshHelperRelease(SUMeshHelperRef* mesh_ref)
-    SU_RESULT SUMeshHelperGetNumTriangles(SUMeshHelperRef mesh_ref, size_t* count)
-    SU_RESULT SUMeshHelperGetNumVertices(SUMeshHelperRef mesh_ref, size_t* count)
-    SU_RESULT SUMeshHelperGetVertexIndices(SUMeshHelperRef mesh_ref, size_t len, size_t indices[], size_t* count)
-    SU_RESULT SUMeshHelperGetVertices(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D vertices[], size_t* count)
-    SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-    SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-    SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
-
-
-
 
 cdef class defaultdict(dict):
     default_factory = property(lambda self: object(), lambda self, v: None, lambda self: None)  # default
@@ -55,6 +40,7 @@ class keep_offset(defaultdict):
         self[item] = number
         return number
 
+
 cdef inline double m(double& v):
     """
     :param v: value to be converted from inches to meters
@@ -62,10 +48,12 @@ cdef inline double m(double& v):
     """
     return <double>0.0254 * v
 
+
 def get_API_version():
     cdef size_t major, minor
     SUGetAPIVersion(&major, &minor)
     return (major,minor)
+
 
 cdef check_result(SU_RESULT r):
     if not r is SU_ERROR_NONE:
@@ -103,6 +91,7 @@ cdef __str_from_SU_RESULT(SU_RESULT r):
     if r is SU_ERROR_MODEL_VERSION:
         return "SU_ERROR_MODEL_VERSION"
 
+
 cdef StringRef2Py(SUStringRef& suStr):
     cdef size_t out_length = 0
     cdef SU_RESULT res = SUStringGetUTF8Length(suStr, &out_length)
@@ -118,6 +107,7 @@ cdef StringRef2Py(SUStringRef& suStr):
         finally:
             free(out_char_array)
         return py_result
+
 
 cdef SUStringRef Py2StringRef(s):
     cdef SUStringRef out_string_ref
@@ -137,6 +127,7 @@ cdef SUStringRef Py2StringRef(s):
         raise TypeError("Cannot make sense of string {}".format(s))
     return out_string_ref
 
+
 cdef class Entity:
     cdef SUEntityRef entity
 
@@ -155,7 +146,6 @@ cdef class Entity:
         return count
 
 
-
 cdef class Point2D:
     cdef SUPoint2D p
 
@@ -170,6 +160,7 @@ cdef class Point2D:
     property y:
         def __get__(self): return self.p.y
         def __set__(self, double y): self.p.y = y
+
 
 cdef class Point3D:
     cdef SUPoint3D p
@@ -190,6 +181,7 @@ cdef class Point3D:
     property z:
         def __get__(self): return self.p.z
         def __set__(self, double z): self.p.z = z
+
 
 cdef class Vector3D:
     cdef SUVector3D p
@@ -378,10 +370,27 @@ cdef class Instance:
             cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
             cdef SUMaterialRef mat
             mat.ptr = <void*> 0
-            check_result(SUDrawingElementGetMaterial(draw_elem, &mat))
-            m = Material()
-            m.material.ptr = mat.ptr
-            return m
+            cdef SU_RESULT = SUDrawingElementGetMaterial(draw_elem, &mat)
+            if SU_RESULT == SU_ERROR_NONE:
+                m = Material()
+                m.material.ptr = mat.ptr
+                return m
+            else:
+                return None
+
+
+    property layer:
+        def __get__(self):
+            cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
+            cdef SULayerRef lay
+            lay.ptr = <void*> 0
+            cdef SU_RESULT res = SUDrawingElementGetLayer(draw_elem, &lay)
+            if res == SU_ERROR_NONE:
+                l = Layer()
+                l.layer.ptr = lay.ptr
+                return l
+            else:
+                return None
 
 
     property hidden:
@@ -447,6 +456,17 @@ cdef class Layer:
             check_result(SULayerGetVisibility(self.layer, &visible_flag))
             return visible_flag
 
+    # def __eq__(self, other):
+    #     return <size_t>self.layer.ptr == <size_t>other.layer.ptr
+
+
+    def __richcmp__(Layer self, Layer other not None, int op):
+        """Cython equivalent of functools.totalordering
+        Implements compare for Cards. Check value, then suit"""
+        if op == 2: # __eq__
+            return <size_t>self.layer.ptr == <size_t>other.layer.ptr
+
+
 cdef class Group:
     cdef SUGroupRef group
 
@@ -491,6 +511,20 @@ cdef class Group:
                 return m
             else:
                 return None
+
+    property layer:
+        def __get__(self):
+            cdef SUDrawingElementRef draw_elem = SUGroupToDrawingElement(self.group)
+            cdef SULayerRef lay
+            lay.ptr = <void*> 0
+            cdef SU_RESULT res = SUDrawingElementGetLayer(draw_elem, &lay)
+            if res == SU_ERROR_NONE:
+                l = Layer()
+                l.layer.ptr = lay.ptr
+                return l
+            else:
+                return None
+
 
     property hidden:
         def __get__(self):
@@ -797,6 +831,21 @@ cdef class Scene:
             res = Entity()
             res.entity = SUSceneToEntity(self.scene)
             return res
+
+    property layers:
+        def __get__(self):
+            cdef size_t num_layers
+            check_result(SUSceneGetNumLayers(self.scene, &num_layers))
+            cdef SULayerRef* layers_array = <SULayerRef*>malloc(sizeof(SULayerRef) * num_layers)
+            for i in range(num_layers):
+                layers_array[i].ptr = <void*> 0
+            cdef size_t count = 0
+            check_result(SUSceneGetLayers(self.scene, num_layers, layers_array, &count))
+            for i in range(count):
+                l = Layer()
+                l.layer.ptr = layers_array[i].ptr
+                yield l
+            free(layers_array)
 
 
 cdef class Model:

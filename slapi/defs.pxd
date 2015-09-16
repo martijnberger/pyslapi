@@ -3,7 +3,9 @@ ctypedef int SU_RESULT
 
 ctypedef unsigned char SUByte
 
-cdef extern from "slapi/model/defs.h":
+cdef extern from "SketchUpAPI/model/defs.h":
+    ctypedef struct SUAxesRef:
+        void *ptr
     ctypedef struct SUAttributeDictionaryRef:
         void *ptr
     ctypedef struct SUCameraRef:

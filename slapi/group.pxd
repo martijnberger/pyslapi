@@ -3,7 +3,7 @@ from .defs cimport *
 from .unicodestring cimport *
 from .geometry cimport *
 
-cdef extern from "slapi/model/group.h":
+cdef extern from "SketchUpAPI/model/group.h":
     SUEntityRef SUGroupToEntity(SUGroupRef group)
     SUGroupRef SUGroupFromEntity(SUEntityRef entity)
     SUDrawingElementRef SUGroupToDrawingElement(SUGroupRef group)

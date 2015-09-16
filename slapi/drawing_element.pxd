@@ -3,7 +3,7 @@ from libcpp cimport bool
 from .defs cimport *
 from .geometry cimport *
 
-cdef extern from "slapi/model/drawing_element.h":
+cdef extern from "SketchUpAPI/model/drawing_element.h":
     SUEntityRef SUDrawingElementToEntity(SUDrawingElementRef elem)
     SUDrawingElementRef SUDrawingElementFromEntity(SUEntityRef entity)
     SURefType SUDrawingElementGetType(SUDrawingElementRef elem)
