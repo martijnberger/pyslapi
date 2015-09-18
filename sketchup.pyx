@@ -249,15 +249,21 @@ cdef class Camera:
                (m(target.x), m(target.y), m(target.z)), \
                (m(up_vector.x), m(up_vector.y), m(up_vector.z))
 
+
     property fov:
         def __get__(self):
             #Retrieves the field of view in degrees of a camera object. The field of view is measured along the vertical direction of the camera.
             cdef double fov
-            check_result(SUCameraGetPerspectiveFrustumFOV(self.camera, &fov))
-            return fov
+            cdef SU_RESULT res = SUCameraGetPerspectiveFrustumFOV(self.camera, &fov)
+            if res == SU_ERROR_NONE:
+                return fov
+            if res == SU_ERROR_NO_DATA:
+                return False
+            raise RuntimeError("Sketchup library giving unexpected results {}".format(__str_from_SU_RESULT(res)))
 
         def __set__(self, double fov):
             check_result(SUCameraSetPerspectiveFrustumFOV(self.camera, fov))
+
 
     property perspective:
         def __get__(self):
@@ -277,13 +283,27 @@ cdef class Camera:
         def __set__(self, double height):
             check_result(SUCameraSetOrthographicFrustumHeight(self.camera, height))
 
+
+    property ortho:
+        def __get__(self):
+            cdef double o = 0
+            cdef SU_RESULT res = SUCameraGetOrthographicFrustumHeight(self.camera, &o)
+            if res == SU_ERROR_NONE:
+                return o
+            if res == SU_ERROR_NO_DATA:
+                return False
+            raise RuntimeError("Sketchup library giving unexpected results {}".format(__str_from_SU_RESULT(res)))
+
+
     property aspect_ratio:
         def __get__(self):
             cdef double asp = 1.0
-            check_result(SUCameraGetAspectRatio(self.camera, &asp))
-            return asp
-
-
+            cdef SU_RESULT res = SUCameraGetAspectRatio(self.camera, &asp)
+            if res == SU_ERROR_NONE:
+                return asp
+            if res == SU_ERROR_NO_DATA:
+                return False
+            raise RuntimeError("Sketchup library giving unexpected results {}".format(__str_from_SU_RESULT(res)))
 
 
 cdef class Texture:

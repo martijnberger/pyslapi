@@ -628,11 +628,16 @@ class SceneImporter():
         ob.matrix_world.col[2] = z.resized(4)
 
         cam = ob.data
-        try:
-            aspect_ratio = camera.aspect_ratio
-        except RuntimeError:
+        aspect_ratio = camera.aspect_ratio
+        fov = camera.fov
+        if aspect_ratio == False: # we seem to be using dynamic / screen aspect ratio
+            sketchupLog("CAMERA {} uses dynamic / screen aspect ratio ".format(name))
             aspect_ratio = self.aspect_ratio
-        cam.angle = (pi * camera.fov / 180 ) * aspect_ratio
+        if fov == False:
+            sketchupLog("CAMERA {} is ortho ".format(name))
+            cam.type = 'ORTHO'
+        else:
+            cam.angle = (pi * fov / 180 ) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
         cam.name = name
 
