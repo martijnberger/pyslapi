@@ -32,6 +32,7 @@ import time
 from . import sketchup
 import tempfile
 from math import pi
+from enum import Enum
 from collections import OrderedDict, defaultdict
 from mathutils import Matrix, Vector, Quaternion
 from bpy.types import Operator, AddonPreferences
@@ -98,6 +99,16 @@ def group_name(name, material):
         return name
 
 
+magic_num = 555555
+
+def group_safe_name(name):
+    if not name:
+        global magic_num
+        magic_num += 9
+        return "{}__{}".format(name, magic_num)
+    return nuame
+
+
 def inherent_default_mat(mat, default_material):
     mat_name = mat.name if mat else default_material
     if mat_name == default_material_name and default_material != default_material_name:
@@ -105,13 +116,19 @@ def inherent_default_mat(mat, default_material):
     return mat_name
 
 
+class EntityType(Enum):
+    none = 0
+    group = 1
+    component = 2
+    outer = 3
+
 class SceneImporter():
     def __init__(self):
         self.filepath = '/tmp/untitled.skp'
         self.name_mapping = {}
         self.component_meshes = {}
         self.scene = None
-        self.layers_skip = None
+        self.layers_skip = []
 
     def set_filename(self, filename):
         self.filepath = filename
@@ -155,7 +172,12 @@ class SceneImporter():
             if not self.layers_skip:
                 sketchupLog('Could not find scene {} importing default'.format(options['import_scene']))
 
+        if not self.layers_skip:
+            self.layers_skip = [l for l in self.skp_model.layers if not l.visible]
 
+        sketchupLog('Skipping layers: ')
+        for l in sorted([l.name for l in self.layers_skip]):
+            sketchupLog(l)
 
         self.skp_components = proxy_dict(self.skp_model.component_definition_as_dict)
 
@@ -227,7 +249,7 @@ class SceneImporter():
                     else:
                         group = bpy.data.groups.new(name=gname)
                         #print("Component written as group".format(gname))
-                        self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, type="Outer", group=group)
+                        self.conponent_definition_as_group(comp_def.entities, name, Matrix(), default_material=mat, etype=EntityType.outer, group=group)
                         self.component_skip[(name,mat)] = comp_def.entities
                         self.group_written[(name,mat)] = group
 
@@ -250,8 +272,8 @@ class SceneImporter():
         return max(own_depth, group_depth, instance_depth)
 
 
-    def analyze_entities(self, entities, name, transform, default_material="Material", type=None, component_stats=None, component_skip=[]):
-        if type=="Component":
+    def analyze_entities(self, entities, name, transform, default_material="Material", etype=EntityType.none, component_stats=None, component_skip=[]):
+        if etype == EntityType.component:
             component_stats[(name,default_material)].append(transform)
 
         for group in entities.groups:
@@ -261,7 +283,7 @@ class SceneImporter():
                                   "G-" + group.name,
                                   transform * Matrix(group.transform),
                                   default_material=inherent_default_mat(group.material, default_material),
-                                  type="Group",
+                                  etype=EntityType.group,
                                   component_stats=component_stats)
 
         for instance in entities.instances:
@@ -275,7 +297,7 @@ class SceneImporter():
                                   cdef.name,
                                   transform * Matrix(instance.transform),
                                   default_material=mat,
-                                  type="Component",
+                                  etype=EntityType.component,
                                   component_stats=component_stats)
         return component_stats
 
@@ -420,8 +442,8 @@ class SceneImporter():
         self.component_meshes[mesh_key] = me, alpha
         return me, alpha
 
-    def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
-        if type=="Component" and (name,default_material) in self.component_skip:
+    def write_entities(self, entities, name, parent_tranform, default_material="Material", etype=None):
+        if etype == EntityType.component and (name,default_material) in self.component_skip:
             self.component_stats[(name,default_material)].append(parent_tranform)
             return
 
@@ -435,16 +457,17 @@ class SceneImporter():
             me.update(calc_edges=True)
             self.context.scene.objects.link(ob)
 
+
         for group in entities.groups:
             if group.hidden:
                 continue
             if self.layers_skip and group.layer in self.layers_skip:
                 continue
             self.write_entities(group.entities,
-                                "G-" + group.name,
+                                "G-" + group_safe_name(group.name),
                                 parent_tranform * Matrix(group.transform),
                                 default_material=inherent_default_mat(group.material, default_material),
-                                type="Group")
+                                etype=EntityType.group)
 
         for instance in entities.instances:
             if instance.hidden:
@@ -457,7 +480,7 @@ class SceneImporter():
                                 cdef.name,
                                 parent_tranform * Matrix(instance.transform),
                                 default_material=mat_name,
-                                type="Component")
+                                etype=EntityType.component)
 
 
     def instance_object_or_group(self, name, default_material):
@@ -476,14 +499,14 @@ class SceneImporter():
             me.update(calc_edges=True)
             return ob
 
-    def conponent_definition_as_group(self, entities, name, parent_tranform, default_material="Material", type=None, group=None):
-        if type == "Outer":
+    def conponent_definition_as_group(self, entities, name, parent_tranform, default_material="Material", etype=None, group=None):
+        if etype == EntityType.outer:
             if (name, default_material) in self.component_skip:
                 return
             else:
                 sketchupLog("Write instance definition as group {} {}".format(group.name, default_material))
                 self.component_skip[(name, default_material)] = True
-        if type == "Component" and (name,default_material) in self.component_skip:
+        if etype == EntityType.component and (name,default_material) in self.component_skip:
             ob = self.instance_object_or_group(name,default_material)
             ob.matrix_world = parent_tranform
             self.context.scene.objects.link(ob)
@@ -510,7 +533,7 @@ class SceneImporter():
                                 "G-" + g.name,
                                 parent_tranform * Matrix(g.transform),
                                 default_material=inherent_default_mat(g.material, default_material),
-                                type="Group",
+                                etype=EntityType.group,
                                 group=group)
 
         for instance in entities.instances:
@@ -521,7 +544,7 @@ class SceneImporter():
                                 cdef.name,
                                 parent_tranform * Matrix(instance.transform),
                                 default_material=inherent_default_mat(instance.material, default_material),
-                                type="Component",
+                                etype=EntityType.component,
                                 group=group)
 
 
