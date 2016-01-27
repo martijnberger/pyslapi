@@ -11,7 +11,7 @@ import platform
 if platform.system() == 'Linux':
     libraries = ["SketchUpAPI"]
     extra_compile_args=[]
-    extra_link_args=['-Lbinaries/x86-64']
+    extra_link_args=['-Lbinaries/sketchup/x86-64']
 elif platform.system() == 'Darwin': # OS x
     libraries=[]
     extra_compile_args=['-mmacosx-version-min=10.8', '-F.']
@@ -19,7 +19,7 @@ elif platform.system() == 'Darwin': # OS x
 else:
     libraries=["SketchUpAPI"]
     extra_compile_args=['/Zp8']
-    extra_link_args=['/LIBPATH:binaries/x64/']
+    extra_link_args=['/LIBPATH:binaries/sketchup/x64/']
 
 setup(
       name = "Sketchup",

@@ -475,14 +475,10 @@ cdef class Layer:
             cdef bool visible_flag = False
             check_result(SULayerGetVisibility(self.layer, &visible_flag))
             return visible_flag
-
-    # def __eq__(self, other):
-    #     return <size_t>self.layer.ptr == <size_t>other.layer.ptr
-
+        def __set__(self, bool vflag):
+            check_result(SULayerSetVisibility(self.layer, vflag))
 
     def __richcmp__(Layer self, Layer other not None, int op):
-        """Cython equivalent of functools.totalordering
-        Implements compare for Cards. Check value, then suit"""
         if op == 2: # __eq__
             return <size_t>self.layer.ptr == <size_t>other.layer.ptr
 
