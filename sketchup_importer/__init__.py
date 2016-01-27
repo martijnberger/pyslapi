@@ -332,8 +332,9 @@ class SceneImporter():
 
 
     def write_mesh_data(self, entities=None, name="", default_material='Material'):
-        if (name,default_material) in self.component_meshes:
-            return self.component_meshes[(name,default_material)]
+        mesh_key = (name,default_material)
+        if mesh_key in self.component_meshes:
+            return self.component_meshes[mesh_key]
         verts = []
         faces = []
         mat_index = []
@@ -416,6 +417,7 @@ class SceneImporter():
 
         me.update(calc_edges=True)
         me.validate()
+        self.component_meshes[mesh_key] = me, alpha
         return me, alpha
 
     def write_entities(self, entities, name, parent_tranform, default_material="Material", type=None):
