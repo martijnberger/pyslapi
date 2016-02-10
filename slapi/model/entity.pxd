@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from libc.stdint cimport int32_t
-from .defs cimport *
+from slapi.model.defs cimport *
 
 cdef extern from "SketchUpAPI/model/entity.h":
     SURefType SUEntityGetType(SUEntityRef entity)

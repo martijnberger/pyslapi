@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from .defs cimport *
-from .unicodestring cimport *
-from .geometry cimport *
+from slapi.model.defs cimport *
+from slapi.unicodestring cimport *
+from slapi.geometry cimport *
 
 cdef extern from "SketchUpAPI/model/group.h":
     SUEntityRef SUGroupToEntity(SUGroupRef group)

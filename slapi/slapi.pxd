@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .defs cimport *
+from slapi.model.defs cimport *
 from .unicodestring cimport *
 
 

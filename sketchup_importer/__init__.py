@@ -17,8 +17,8 @@ __license__ = "GPL"
 bl_info = {
     "name": "Sketchup importer",
     "author": "Martijn Berger",
-    "version": (0, 1, 3, 'dev'),
-    "blender": (2, 7, 5),
+    "version": (0, 1, 4, 'dev'),
+    "blender": (2, 7, 6),
     "description": "import/export Sketchup skp files",
     "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",

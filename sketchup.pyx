@@ -1,27 +1,25 @@
 # -*- coding: utf-8 -*-
 
 from cpython.version cimport PY_MAJOR_VERSION
-from cpython.ref cimport PyObject
 from libcpp cimport bool
-from cython.operator cimport dereference as deref, preincrement as inc
 from libc.stdlib cimport malloc, free
 
 from slapi.slapi cimport *
 from slapi.initialize cimport *
-from slapi.defs cimport *
-from slapi.drawing_element cimport *
-from slapi.entities cimport *
+from slapi.model.defs cimport *
+from slapi.model.drawing_element cimport *
+from slapi.model.entities cimport *
 from slapi.unicodestring cimport *
-from slapi.entities cimport *
-from slapi.entity cimport *
-from slapi.camera cimport *
-from slapi.model cimport *
-from slapi.component cimport *
-from slapi.material cimport *
-from slapi.group cimport *
-from slapi.texture cimport *
-from slapi.scene cimport *
-from slapi.layer cimport *
+from slapi.model.entities cimport *
+from slapi.model.entity cimport *
+from slapi.model.camera cimport *
+from slapi.model.model cimport *
+from slapi.model.component cimport *
+from slapi.model.material cimport *
+from slapi.model.group cimport *
+from slapi.model.texture cimport *
+from slapi.model.scene cimport *
+from slapi.model.layer cimport *
 
 
 cdef class defaultdict(dict):

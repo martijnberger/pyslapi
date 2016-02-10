@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from libc.stddef cimport wchar_t
 
-from .defs cimport *
+from slapi.model.defs cimport *
 
 ctypedef wchar_t unichar
 cdef extern from "SketchUpAPI/unicodestring.h":

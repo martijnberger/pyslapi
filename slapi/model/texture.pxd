@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from libcpp cimport bool
-from .defs cimport *
-from .unicodestring cimport *
-from .geometry cimport *
+from slapi.model.defs cimport *
+from slapi.unicodestring cimport *
+from slapi.geometry cimport *
 
 cdef extern from "SketchUpAPI/model/texture.h":
     SUEntityRef SUTextureToEntity(SUTextureRef texture)

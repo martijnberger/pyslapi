@@ -1,14 +1,8 @@
 # -*- coding: utf-8 -*-
 from libcpp cimport bool
-from .defs cimport *
-from .unicodestring cimport *
-
-cdef extern from "SketchUpAPI/color.h":
-    ctypedef struct SUColor:
-        SUByte red,
-        SUByte green,
-        SUByte blue,
-        SUByte alpha
+from slapi.model.defs cimport *
+from slapi.unicodestring cimport *
+from slapi.color cimport *
 
 cdef extern from "SketchUpAPI/model/material.h":
     cdef enum SUMaterialType:

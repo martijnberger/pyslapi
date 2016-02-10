@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from libcpp cimport bool
-from .defs cimport *
-from .geometry cimport *
-from .unicodestring cimport *
+from slapi.model.defs cimport *
+from slapi.geometry cimport *
+from slapi.unicodestring cimport *
 
 cdef extern from "SketchUpAPI/model/model.h":
     enum SUEntityType "SUModelStatistics::SUEntityType":

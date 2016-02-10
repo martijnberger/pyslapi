@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from libcpp cimport bool
-from .defs cimport *
-from .geometry cimport *
+from slapi.model.defs cimport *
+from slapi.geometry cimport *
 
 cdef extern from "SketchUpAPI/model/camera.h":
 

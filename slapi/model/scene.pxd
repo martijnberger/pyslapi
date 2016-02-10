@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from libcpp cimport bool
-from .defs cimport *
-from .unicodestring cimport *
+from slapi.model.defs cimport *
+from slapi.unicodestring cimport *
 
 cdef extern from "SketchUpAPI/model/scene.h":
     SUEntityRef SUSceneToEntity(SUSceneRef scene)
