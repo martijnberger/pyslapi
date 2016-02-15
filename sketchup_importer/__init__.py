@@ -106,7 +106,7 @@ def group_safe_name(name):
         global magic_num
         magic_num += 9
         return "{}__{}".format(name, magic_num)
-    return nuame
+    return name
 
 
 def inherent_default_mat(mat, default_material):
