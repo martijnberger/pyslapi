@@ -273,7 +273,6 @@ class SceneImporter():
 
 
     def analyze_entities(self, entities, name, transform, default_material="Material", etype=EntityType.none, component_stats=None, component_skip=[]):
-
         if etype == EntityType.component:
             component_stats[(name,default_material)].append(transform)
 
