@@ -37,7 +37,7 @@ from collections import OrderedDict, defaultdict
 from mathutils import Matrix, Vector, Quaternion
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
-from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list
+from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list, ExportHelper
 from extensions_framework import log
 
 
@@ -273,6 +273,7 @@ class SceneImporter():
 
 
     def analyze_entities(self, entities, name, transform, default_material="Material", etype=EntityType.none, component_stats=None, component_skip=[]):
+
         if etype == EntityType.component:
             component_stats[(name,default_material)].append(transform)
 
@@ -668,6 +669,20 @@ class SceneImporter():
 
 
 
+class SceneExporter():
+    def __init__(self):
+        self.filepath = '/tmp/untitled.skp'
+
+    def set_filename(self, filename):
+        self.filepath = filename
+        self.basepath, self.skp_filename = os.path.split(self.filepath)
+        return self # allow chaining
+
+    def save(self, context, **options):
+        sketchupLog('finished exporting %s'% (self.filepath))
+        return {'FINISHED'}
+
+
 class ImportSKP(bpy.types.Operator, ImportHelper):
     """load a Trimble Sketchup SKP file"""
     bl_idname = "import_scene.skp"
@@ -718,18 +733,37 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row.prop(self, "import_scene")
 
 
+class ExportSKP(bpy.types.Operator, ExportHelper):
+    """load a Trimble Sketchup SKP file"""
+    bl_idname = "import_scene.skp"
+    bl_label = "Export SKP"
+    bl_options = {'PRESET', 'UNDO'}
+
+    filename_ext = ".skp"
+
+    def execute(self, context):
+        keywords = self.as_keywords()
+        return SceneExporter().set_filename(keywords['filepath']).save(context, **keywords)
+
+
 def menu_func_import(self, context):
     self.layout.operator(ImportSKP.bl_idname, text="Import Sketchup Scene(.skp)")
 
+def menu_func_export(self, context):
+    self.layout.operator(ExportSKP.bl_idname, text="Export Sketchup Scene(.skp)")
 
 # Registration
 def register():
     bpy.utils.register_class(SketchupAddonPreferences)
     bpy.utils.register_class(ImportSKP)
     bpy.types.INFO_MT_file_import.append(menu_func_import)
+    bpy.utils.register_class(ExportSKP)
+    bpy.types.INFO_MT_file_export.append(menu_func_export)
 
 
 def unregister():
     bpy.utils.unregister_class(ImportSKP)
     bpy.types.INFO_MT_file_import.remove(menu_func_import)
+    bpy.utils.unregister_class(ExportSKP)
+    bpy.types.INFO_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(SketchupAddonPreferences)
