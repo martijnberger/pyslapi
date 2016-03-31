@@ -734,7 +734,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
 
 class ExportSKP(bpy.types.Operator, ExportHelper):
     """load a Trimble Sketchup SKP file"""
-    bl_idname = "import_scene.skp"
+    bl_idname = "export_scene.skp"
     bl_label = "Export SKP"
     bl_options = {'PRESET', 'UNDO'}
 
