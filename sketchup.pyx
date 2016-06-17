@@ -574,6 +574,7 @@ cdef class Face:
 
     property tessfaces:
         def __get__(self):
+            cdef double z
             cdef SUMeshHelperRef mesh_ref
             mesh_ref.ptr = <void*> 0
             check_result(SUMeshHelperCreate(&mesh_ref, self.face_ref))
@@ -597,7 +598,10 @@ cdef class Face:
             for i in range(got_vertex_count):
                 vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
             for i in range(got_stq_count):
-                uv_list.append((stq[i].x / stq[i].z * self.s_scale, stq[i].y / stq[i].z * self.t_scale))
+                z =  stq[i].z
+                if z == 0:
+                    z = 1.0
+                uv_list.append((stq[i].x / z * self.s_scale, stq[i].y / z * self.t_scale))
             triangles_list = []
             for ii in range(index_count / 3):
                 i = ii * 3
