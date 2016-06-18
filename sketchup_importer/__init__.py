@@ -452,11 +452,11 @@ class SceneImporter():
         if me:
             ob = bpy.data.objects.new(name, me)
             ob.matrix_world = parent_tranform
-            if alpha:
+            if alpha > 0.01 and alpha < 1.0:
                 ob.show_transparent = True
             me.update(calc_edges=True)
+            print("Mesh")
             self.context.scene.objects.link(ob)
-
 
         for group in entities.groups:
             if group.hidden:

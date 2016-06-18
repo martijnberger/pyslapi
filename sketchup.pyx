@@ -2,7 +2,9 @@
 
 from cpython.version cimport PY_MAJOR_VERSION
 from libcpp cimport bool
+from libc.stddef cimport size_t
 from libc.stdlib cimport malloc, free
+
 
 from slapi.slapi cimport *
 from slapi.initialize cimport *
@@ -13,6 +15,7 @@ from slapi.unicodestring cimport *
 from slapi.model.entities cimport *
 from slapi.model.entity cimport *
 from slapi.model.camera cimport *
+from slapi.model.geometry_input cimport *
 from slapi.model.model cimport *
 from slapi.model.component cimport *
 from slapi.model.material cimport *
@@ -179,6 +182,12 @@ cdef class Point3D:
     property z:
         def __get__(self): return self.p.z
         def __set__(self, double z): self.p.z = z
+
+    def __str__(self):
+        return "Point3d<{},{},{}>".format(self.p.x, self.p.y, self.p.z)
+
+    def __repr__(self):
+        return "Point3d @{} [{},{},{}]".format(<size_t> &(self.p), self.p.x, self.p.y, self.p.z)
 
 
 cdef class Vector3D:
@@ -457,8 +466,10 @@ cdef class Component:
 cdef class Layer:
     cdef SULayerRef layer
 
-    def __cinit__(self):
-        pass
+    def __cinit__(self, **kwargs):
+        self.layer.ptr = <void*>0
+        if not '__skip_init' in kwargs:
+            check_result(SULayerCreate(&(self.layer)))
 
     property name:
         def __get__(self):
@@ -533,7 +544,7 @@ cdef class Group:
             lay.ptr = <void*> 0
             cdef SU_RESULT res = SUDrawingElementGetLayer(draw_elem, &lay)
             if res == SU_ERROR_NONE:
-                l = Layer()
+                l = Layer(__skip_init=True)
                 l.layer.ptr = lay.ptr
                 return l
             else:
@@ -563,6 +574,40 @@ cdef class Face:
         self.face_ref.ptr = <void *> 0
         self.s_scale = 1.0
         self.t_scale = 1.0
+
+    @staticmethod
+    def create():
+        cdef SUPoint3D[4] vl = [
+            [0,   0,   0],
+            [100, 100, 0],
+            [100, 100, 100],
+            [0,   0,   100]]
+
+        cdef SULoopInputRef outer_loop
+        outer_loop.ptr = <void*> 0
+        check_result(SULoopInputCreate(&outer_loop))
+        for i in range(4):
+            check_result(SULoopInputAddVertexIndex(outer_loop, i))
+
+        res = Face()
+        check_result(SUFaceCreate(&(res.face_ref), vl, &outer_loop))
+        print("Face {}".format(<size_t> res.face_ref.ptr))
+        return res
+
+    @staticmethod
+    def create_simple(list vertices):
+        cdef size_t face_len = len(vertices)
+        cdef SUPoint3D *vl = <SUPoint3D*>malloc(sizeof(SUPoint3D) * face_len)
+        for i, vert in enumerate(vertices):
+            if len(vert) != 3:
+                raise ValueError('Vertices should have 3 coordinates')
+            vl[i].x = float(vert[0])
+            vl[i].y = float(vert[1])
+            vl[i].z = float(vert[2])
+
+        res = Face()
+        check_result(SUFaceCreateSimple(&(res.face_ref), vl, face_len))
+        return res
 
     property st_scale:
         def __set__(self, v):
@@ -625,8 +670,7 @@ cdef class Face:
 
 
     def __repr__(self):
-        v, t = self.triangles
-        return "Face with {} triangles {} vertices\n {} {}".format(len(t), len(v), v, t)
+        return "SUFaceRef 0x%0.16X" % <size_t>self.face_ref.ptr
 
 
 cdef class Entities:
@@ -761,6 +805,9 @@ cdef class Entities:
                 yield instance_from_ptr(instances[i])
             free(instances)
 
+    def addFace(self, Face face):
+         check_result(SUEntitiesAddFaces(self.entities, 1, &face.face_ref))
+
 
 
 cdef class Material:
@@ -860,32 +907,46 @@ cdef class Scene:
             cdef size_t count = 0
             check_result(SUSceneGetLayers(self.scene, num_layers, layers_array, &count))
             for i in range(count):
-                l = Layer()
+                l = Layer(__skip_init=True)
                 l.layer.ptr = layers_array[i].ptr
                 yield l
             free(layers_array)
 
 
+cdef class LoopInput:
+    cdef SULoopInputRef loop
+
+    def __cinit__(self, **kwargs):
+        self.loop.ptr = <void *> 0
+        if not '__skip_init' in kwargs:
+            check_result(SULoopInputCreate(&(self.loop)))
+
+    def AddVertexIndex(self, i):
+        check_result(SULoopInputAddVertexIndex(self.loop, i))
+
+
+
 cdef class Model:
     cdef SUModelRef model
 
-    def __cinit__(self):
+    def __cinit__(self, **kwargs):
         self.model.ptr = <void *> 0
-
-
-    cdef set_ptr(self, void* ptr):
-        self.model.ptr = ptr
+        if not '__skip_init' in kwargs:
+            check_result(SUModelCreate(&(self.model)))
 
     @staticmethod
     def from_file(filename):
-        res = Model()
-        cdef SUModelRef m
-        m.ptr = <void*> 0
+        res = Model(__skip_init=True)
         py_byte_string = filename.encode('UTF-8')
         cdef const char* f = py_byte_string
-        check_result(SUModelCreateFromFile(&m, f))
-        res.set_ptr(m.ptr)
+        check_result(SUModelCreateFromFile(&(res.model), f))
         return res
+
+    def save(self, filename):
+        py_byte_string = filename.encode('UTF-8')
+        cdef const char* f = py_byte_string
+        check_result(SUModelSaveToFile(self.model, f))
+        return True
 
     def NumMaterials(self):
         cdef size_t count = 0
@@ -990,7 +1051,7 @@ cdef class Model:
             cdef size_t count = 0
             check_result(SUModelGetLayers(self.model, num_layers, layers_array, &count))
             for i in range(count):
-                l = Layer()
+                l = Layer(__skip_init=True)
                 l.layer.ptr = layers_array[i].ptr
                 yield l
             free(layers_array)
