@@ -391,7 +391,6 @@ cdef class Instance:
                     [t.values[2], t.values[6], t.values[10], m(t.values[14])],
                     [t.values[3], t.values[7], t.values[11],   t.values[15]]] # * transform
 
-
     property material:
         def __get__(self):
             cdef SUDrawingElementRef draw_elem = SUComponentInstanceToDrawingElement(self.instance)
@@ -808,6 +807,10 @@ cdef class Entities:
     def addFace(self, Face face):
          check_result(SUEntitiesAddFaces(self.entities, 1, &face.face_ref))
 
+
+    def __repr__(self):
+        return "<sketchup.Entities at {}> groups {} instances {}".format(hex(<size_t>&self.entities),
+                                                                         self.NumGroups(), self.NumInstances())
 
 
 cdef class Material:

@@ -455,7 +455,6 @@ class SceneImporter():
             if alpha > 0.01 and alpha < 1.0:
                 ob.show_transparent = True
             me.update(calc_edges=True)
-            print("Mesh")
             self.context.scene.objects.link(ob)
 
         for group in entities.groups:
