@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 cdef extern from "SketchUpAPI/geometry.h":
     struct SUPoint2D:
         double x
@@ -24,7 +23,3 @@ cdef extern from "SketchUpAPI/geometry.h":
     struct SUBoundingBox3D:
         SUPoint3D min_point
         SUPoint3D max_point
-
-cdef extern from "SketchUpAPI/transformation.h":
-    struct SUTransformation:
-        double values[16] #; ///< Matrix values in column-major order.

@@ -3,6 +3,7 @@ from libcpp cimport bool
 from slapi.model.defs cimport *
 from slapi.unicodestring cimport *
 from slapi.geometry cimport *
+from slapi.transformation cimport SUTransformation
 
 cdef extern from "SketchUpAPI/model/component_definition.h":
     cdef enum SUSnapToBehavior:

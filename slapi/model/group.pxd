@@ -2,6 +2,7 @@
 from slapi.model.defs cimport *
 from slapi.unicodestring cimport *
 from slapi.geometry cimport *
+from slapi.transformation cimport SUTransformation
 
 cdef extern from "SketchUpAPI/model/group.h":
     SUEntityRef SUGroupToEntity(SUGroupRef group)
