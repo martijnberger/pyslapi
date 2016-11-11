@@ -16,6 +16,7 @@ cdef extern from "SketchUpAPI/model/material.h":
     SU_RESULT SUMaterialRelease(SUMaterialRef* material)
     SU_RESULT SUMaterialSetName(SUMaterialRef material, const char* name)
     SU_RESULT SUMaterialGetName(SUMaterialRef material, SUStringRef* name)
+    SU_RESULT SUMaterialGetNameLegacyBehavior(SUMaterialRef material, SUStringRef* name) # API 5.0
     SU_RESULT SUMaterialSetColor(SUMaterialRef material, const SUColor* color)
     SU_RESULT SUMaterialGetColor(SUMaterialRef material, SUColor* color)
     SU_RESULT SUMaterialSetTexture(SUMaterialRef material, SUTextureRef texture)

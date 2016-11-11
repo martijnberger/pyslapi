@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from libcpp cimport bool
 from slapi.model.defs cimport *
 from slapi.unicodestring cimport *
 from slapi.geometry cimport *
@@ -17,3 +18,11 @@ cdef extern from "SketchUpAPI/model/component_instance.h":
     SU_RESULT SUComponentInstanceSetTransform(SUComponentInstanceRef instance,const SUTransformation* transform)
     SU_RESULT SUComponentInstanceGetTransform(SUComponentInstanceRef instance, SUTransformation* transform);
     SU_RESULT SUComponentInstanceGetDefinition(SUComponentInstanceRef instance, SUComponentDefinitionRef* component)
+    SU_RESULT SUComponentInstanceSetLocked(SUComponentInstanceRef instance, bool lock) # API 4.0
+    SU_RESULT SUComponentInstanceIsLocked(SUComponentInstanceRef instance, bool* is_locked) # API 4.0
+    SU_RESULT SUComponentInstanceSaveAs(SUComponentInstanceRef instance, const char* file_path)
+    SU_RESULT SUComponentInstanceComputeVolume(SUComponentInstanceRef instance, const SUTransformation* transform, double* volume) # API 4.0
+    SU_RESULT SUComponentInstanceCreateDCInfo(SUComponentInstanceRef instance, SUDynamicComponentInfoRef* dc_info) # API 4.0
+    SU_RESULT SUComponentInstanceCreateClassificationInfo(SUComponentInstanceRef instance, SUClassificationInfoRef* classification_info) # API 5.0
+    SU_RESULT SUComponentInstanceGetNumAttachedInstances(SUComponentInstanceRef instance, size_t* count)
+    SU_RESULT SUComponentInstanceGetAttachedInstances(SUComponentInstanceRef instance, size_t len, SUComponentInstanceRef instances[], size_t* count)

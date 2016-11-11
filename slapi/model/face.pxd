@@ -2,6 +2,7 @@
 from libcpp cimport bool
 from slapi.model.defs cimport *
 from slapi.geometry cimport *
+from slapi.transformation cimport SUTransformation
 from slapi.unicodestring cimport *
 from geometry_input cimport *
 
@@ -32,6 +33,10 @@ cdef extern from "SketchUpAPI/model/face.h":
     SU_RESULT SUFaceIsFrontMaterialAffine(SUFaceRef face, bool* is_affine)
     SU_RESULT SUFaceIsBackMaterialAffine(SUFaceRef face, bool* is_affine)
     SU_RESULT SUFaceGetArea(SUFaceRef face, double* area)
+    SU_RESULT SUFaceGetAreaWithTransform(SUFaceRef face, const SUTransformation* transform, double *area) # API 4.0
     SU_RESULT SUFaceIsComplex(SUFaceRef face, bool* is_complex)
     SU_RESULT SUFaceGetUVHelper(SUFaceRef face, bool front, bool back, SUTextureWriterRef texture_writer,  SUUVHelperRef* uv_helper)
     SU_RESULT SUFaceGetUVHelperWithTextureHandle(SUFaceRef face,  bool front, bool back, SUTextureWriterRef texture_writer, long textureHandle,  SUUVHelperRef* uv_helper)
+    SU_RESULT SUFaceGetNumAttachedDrawingElements(SUFaceRef face, size_t* count) # API 4.0
+    SU_RESULT SUFaceGetAttachedDrawingElements(SUFaceRef face, size_t len, SUDrawingElementRef elems[], size_t* count) # API 4.0
+    SU_RESULT SUFaceReverse(SUFaceRef face)
