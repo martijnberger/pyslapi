@@ -18,6 +18,7 @@ from slapi.model.camera cimport *
 from slapi.model.geometry_input cimport *
 from slapi.model.model cimport *
 from slapi.model.component cimport *
+from slapi.model.component_instance cimport *
 from slapi.model.material cimport *
 from slapi.model.group cimport *
 from slapi.model.texture cimport *
