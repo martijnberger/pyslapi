@@ -4,6 +4,9 @@ from slapi.model.defs cimport *
 from slapi.geometry cimport *
 
 cdef extern from "SketchUpAPI/model/geometry_input.h":
+    ctypedef struct SULoopInputRef:
+        void *ptr
+
     ctypedef struct SUMaterialInput:
         size_t num_uv_coords
         SUPoint2D uv_coords[4]

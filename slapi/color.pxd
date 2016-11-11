@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from slapi.model.defs cimport *
+ctypedef unsigned char SUByte
 
 cdef extern from "SketchUpAPI/color.h":
     ctypedef struct SUColor:

@@ -36,7 +36,9 @@ cdef extern from "SketchUpAPI/model/model.h":
         SUModelVersion_SU8,
         SUModelVersion_SU2013,
         SUModelVersion_SU2014,
-        SUModelVersion_SU2015
+        SUModelVersion_SU2015,
+        SUModelVersion_SU2016,
+        SUModelVersion_SU2017
 
     SU_RESULT SUModelCreate(SUModelRef* model)
     SU_RESULT SUModelCreateFromFile(SUModelRef* model, const char* file_path)
@@ -75,63 +77,3 @@ cdef extern from "SketchUpAPI/model/model.h":
     SU_RESULT SUModelSetName(SUModelRef model, const char* name)
     SU_RESULT SUModelGetUnits(SUModelRef model, SUModelUnits* units)
     SU_RESULT SUModelGetClassifications(SUModelRef model, SUClassificationsRef* classifications)
-
-cdef extern from "SketchUpAPI/model/face.h":
-    SUEntityRef SUFaceToEntity(SUFaceRef face)
-    SUFaceRef SUFaceFromEntity(SUEntityRef entity)
-    SUDrawingElementRef SUFaceToDrawingElement(SUFaceRef face)
-    SUFaceRef SUFaceFromDrawingElement(SUDrawingElementRef drawing_elem)
-    SU_RESULT SUFaceCreate(SUFaceRef* face,const SUPoint3D vertices3d[], SULoopInputRef* outer_loop)
-    SU_RESULT SUFaceCreateSimple(SUFaceRef* face, const  SUPoint3D vertices3d[], size_t len)
-    SU_RESULT SUFaceGetNormal(SUFaceRef face, SUVector3D* normal)
-    SU_RESULT SUFaceRelease(SUFaceRef* face)
-    SU_RESULT SUFaceGetNumEdges(SUFaceRef face, size_t* count)
-    SU_RESULT SUFaceGetEdges(SUFaceRef face, size_t len, SUEdgeRef edges[],  size_t* count)
-    SU_RESULT SUFaceGetPlane(SUFaceRef face, SUPlane3D* plane)
-    SU_RESULT SUFaceGetNumVertices(SUFaceRef face, size_t* count)
-    SU_RESULT SUFaceGetVertices(SUFaceRef face, size_t len, SUVertexRef vertices[], size_t* count)
-    SU_RESULT SUFaceGetOuterLoop(SUFaceRef face, SULoopRef* loop)
-    SU_RESULT SUFaceGetNumInnerLoops(SUFaceRef face, size_t* count)
-    SU_RESULT SUFaceGetInnerLoops(SUFaceRef face, size_t len, SULoopRef loops[], size_t* count)
-    SU_RESULT SUFaceAddInnerLoop(SUFaceRef face, const SUPoint3D vertices3d[], SULoopInputRef* loop)
-    SU_RESULT SUFaceGetNumOpenings(SUFaceRef face, size_t* count)
-    SU_RESULT SUFaceGetOpenings(SUFaceRef face, size_t len, SUOpeningRef openings[], size_t* count)
-    SU_RESULT SUFaceGetFrontMaterial(SUFaceRef face, SUMaterialRef* material)
-    SU_RESULT SUFaceSetFrontMaterial(SUFaceRef face, SUMaterialRef material)
-    SU_RESULT SUFaceGetBackMaterial(SUFaceRef face, SUMaterialRef* material)
-    SU_RESULT SUFaceSetBackMaterial(SUFaceRef face, SUMaterialRef material)
-    SU_RESULT SUFaceIsFrontMaterialAffine(SUFaceRef face, bool* is_affine)
-    SU_RESULT SUFaceIsBackMaterialAffine(SUFaceRef face, bool* is_affine)
-    SU_RESULT SUFaceGetArea(SUFaceRef face, double* area)
-    SU_RESULT SUFaceIsComplex(SUFaceRef face, bool* is_complex)
-    SU_RESULT SUFaceGetUVHelper(SUFaceRef face, bool front, bool back, SUTextureWriterRef texture_writer,  SUUVHelperRef* uv_helper)
-    SU_RESULT SUFaceGetUVHelperWithTextureHandle(SUFaceRef face,  bool front, bool back, SUTextureWriterRef texture_writer, long textureHandle,  SUUVHelperRef* uv_helper)
-
-
-cdef extern from  "SketchUpAPI/model/mesh_helper.h":
-    SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
-    SU_RESULT SUMeshHelperCreateWithTextureWriter(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUTextureWriterRef texture_writer_ref)
-    SU_RESULT SUMeshHelperCreateWithUVHelper(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUUVHelperRef uv_helper_ref)
-    SU_RESULT SUMeshHelperRelease(SUMeshHelperRef* mesh_ref)
-    SU_RESULT SUMeshHelperGetNumTriangles(SUMeshHelperRef mesh_ref, size_t* count)
-    SU_RESULT SUMeshHelperGetNumVertices(SUMeshHelperRef mesh_ref, size_t* count)
-    SU_RESULT SUMeshHelperGetVertexIndices(SUMeshHelperRef mesh_ref, size_t len, size_t indices[], size_t* count)
-    SU_RESULT SUMeshHelperGetVertices(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D vertices[], size_t* count)
-    SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-    SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-    SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
-
-
-cdef extern from "SketchUpAPI/model/mesh_helper.h":
-    SU_RESULT SUMeshHelperCreate(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref)
-    SU_RESULT SUMeshHelperCreateWithTextureWriter(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUTextureWriterRef texture_writer_ref)
-    SU_RESULT SUMeshHelperCreateWithUVHelper(SUMeshHelperRef* mesh_ref, SUFaceRef face_ref, SUUVHelperRef uv_helper_ref)
-    SU_RESULT SUMeshHelperRelease(SUMeshHelperRef* mesh_ref)
-    SU_RESULT SUMeshHelperGetNumTriangles(SUMeshHelperRef mesh_ref, size_t* count)
-    SU_RESULT SUMeshHelperGetNumVertices(SUMeshHelperRef mesh_ref, size_t* count)
-    SU_RESULT SUMeshHelperGetVertexIndices(SUMeshHelperRef mesh_ref, size_t len, size_t indices[], size_t* count)
-    SU_RESULT SUMeshHelperGetVertices(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D vertices[], size_t* count)
-    SU_RESULT SUMeshHelperGetFrontSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-    SU_RESULT SUMeshHelperGetBackSTQCoords(SUMeshHelperRef mesh_ref, size_t len, SUPoint3D stq[], size_t* count)
-    SU_RESULT SUMeshHelperGetNormals(SUMeshHelperRef mesh_ref, size_t len, SUVector3D normals[], size_t* count)
-

@@ -4,6 +4,10 @@ cdef extern from "SketchUpAPI/geometry.h":
         double x
         double y
 
+    struct SUVector2D:
+        double x
+        double y
+
     struct SUPoint3D:
         double x
         double y
@@ -23,3 +27,7 @@ cdef extern from "SketchUpAPI/geometry.h":
     struct SUBoundingBox3D:
         SUPoint3D min_point
         SUPoint3D max_point
+
+    struct SUAxisAlignedRect2D:
+        SUPoint2D upper_left
+        SUPoint2D lower_right

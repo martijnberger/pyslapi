@@ -24,5 +24,17 @@ cdef extern from "SketchUpAPI/slapi.h":
         SU_ERROR_UNKNOWN_EXCEPTION      # An unknown exception occurred.
         SU_ERROR_MODEL_INVALID          # The model requested is invalid and cannot be loaded.
         SU_ERROR_MODEL_VERSION          # The model cannot be loaded or saved due to an
+        SU_ERROR_LAYER_LOCKED           # The layer that is being modified is locked.
+        SU_ERROR_DUPLICATE              # The user requested an operation that would result in duplicate data.
+        SU_ERROR_PARTIAL_SUCCESS        # The requested operation was not fully completed but it returned an intermediate successful result.
+        SU_ERROR_UNSUPPORTED            # The requested operation is not supported
+        SU_ERROR_INVALID_ARGUMENT       # An argument contains invalid information
 
+cdef extern from "SketchupAPI/sketchup_info.h":
+    cdef enum SUEdition:
+        SUEdition_Unknown
+        SUEdition_Make      # SketchUp Make
+        SUEdition_Pro       # SketchUp Pro
 
+    SU_RESULT SUGetVersionStringUtf8(size_t length, char* version)
+    SU_RESULT SUGetEdition(SUEdition* edition)

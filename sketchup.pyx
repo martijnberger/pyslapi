@@ -23,6 +23,8 @@ from slapi.model.group cimport *
 from slapi.model.texture cimport *
 from slapi.model.scene cimport *
 from slapi.model.layer cimport *
+from slapi.model.face cimport *
+from slapi.model.mesh_helper cimport *
 
 
 cdef class defaultdict(dict):
