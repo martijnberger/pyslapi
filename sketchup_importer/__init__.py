@@ -139,6 +139,7 @@ class SceneImporter():
         """load a sketchup file"""
         self.context = context
         self.reuse_material = options['reuse_material']
+        self.reuse_group = options['reuse_existing_groups']
         self.max_instance = options['max_instance']
         self.component_stats = defaultdict(list)
         self.component_skip = proxy_dict()
@@ -242,7 +243,7 @@ class SceneImporter():
                     pass
                 elif comp_def and depth == i:
                     gname = group_name(name,mat)
-                    if gname in bpy.data.groups:
+                    if self.reuse_group and gname in bpy.data.groups:
                         #print("Group {} already defined".format(gname))
                         self.component_skip[(name,mat)] = comp_def.entities
                         self.group_written[(name,mat)] = bpy.data.groups[gname]
@@ -707,6 +708,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
     dedub_only = BoolProperty(name="Groups Only", description="Import deduplicated groups only", default=False)
     scenes_as_camera = BoolProperty(name="Scenes", description="Import Active view as camera", default=True)
     import_scene = StringProperty(name="Import Scene", description="Name of the Sketchup scene to import", default="")
+    reuse_existing_groups = BoolProperty(name="Reuse groups", description="Use existing blender groups to instance componenets with", default=False)
 
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
@@ -729,6 +731,7 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row.prop(self, "dedub_only")
         row = layout.row(align=True)
         row.prop(self, "import_scene")
+        row.prop(self, "reuse_existing_groups")
 
 
 class ExportSKP(bpy.types.Operator, ExportHelper):
