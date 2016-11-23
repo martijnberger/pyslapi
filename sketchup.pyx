@@ -439,6 +439,18 @@ cdef class Component:
             check_result(SUComponentDefinitionGetName(self.comp_def, &n))
             return StringRef2Py(n)
 
+    property numInstances:
+        def __get__(self):
+            cdef size_t n = 0
+            check_result(SUComponentDefinitionGetNumInstances(self.comp_def, &n))
+            return n
+
+    property numUsedInstances:
+        def __get__(self):
+            cdef size_t n = 0
+            check_result(SUComponentDefinitionGetNumUsedInstances(self.comp_def, &n))
+            return n
+
 cdef class Layer:
     cdef SULayerRef layer
 
