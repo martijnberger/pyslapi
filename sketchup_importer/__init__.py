@@ -139,7 +139,7 @@ class SceneImporter():
         sketchupLog('imported materials in %.4f sec' % (time.time() - t1))
 
         t1 = time.time()
-        D = SKP_util
+        D = SKP_util()
         SKP_util.layers_skip = self.layers_skip
 
         for c in self.skp_model.component_definitions:
