@@ -301,7 +301,10 @@ class SceneImporter():
             else:
                 mat_number = mats[default_material]
                 if default_material != 'Material':
-                    f.st_scale = self.materials_scales[default_material]
+                    try:
+                        f.st_scale = self.materials_scales[default_material]
+                    except KeyError as e:
+                        pass
 
             vs, tri, uvs = f.tessfaces
 
@@ -343,7 +346,10 @@ class SceneImporter():
         if len(mats) >= 1:
             mats_sorted = OrderedDict(sorted(mats.items(), key=lambda x: x[1]))
             for k in mats_sorted.keys():
-                bmat = self.materials[k]
+                try:
+                    bmat = self.materials[k]
+                except KeyError as e:
+                    bmat = self.materials["Material"]
                 me.materials.append(bmat)
                 if bmat.alpha < 1.0:
                     alpha = True
