@@ -297,6 +297,7 @@ class SceneImporter():
         verts = []
         faces = []
         mat_index = []
+        smooth = []
         mats = keep_offset()
         seen = keep_offset()
         uv_list = []
@@ -326,6 +327,12 @@ class SceneImporter():
                     verts.append(v)
                 uvs.append(uv)
 
+            smooth_edge = False
+
+            for edge in f.edges:
+                if edge.GetSmooth() == True:
+                    smooth_edge = True
+                    break
 
             for face in tri:
                 f0, f1, f2 = face[0], face[1], face[2]
@@ -341,6 +348,7 @@ class SceneImporter():
                                      uvs[f1][0], uvs[f1][1],
                                      uvs[f2][0], uvs[f2][1],
                                      0, 0 ) )
+                smooth.append(smooth_edge)
                 mat_index.append(mat_number)
 
         # verts, faces, uv_list, mat_index, mats = entities.get__triangles_lists(default_material)
@@ -379,6 +387,9 @@ class SceneImporter():
         me.vertices.foreach_set("co", unpack_list(verts))
         me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
         me.tessfaces.foreach_set("material_index", mat_index)
+        me.tessfaces.foreach_set("use_smooth", smooth)
+
+        print('tessfaces: %i smoothie %i' % (len(faces), len(smooth)))
 
         if uvs_used:
             me.tessface_uv_textures.new()
