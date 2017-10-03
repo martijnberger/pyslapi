@@ -1,0 +1,5 @@
+/build/
+sketchup.cpp
+sketchup.so
+SketchUpAPI.framework
+.DS_Store
