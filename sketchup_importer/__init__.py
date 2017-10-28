@@ -79,6 +79,7 @@ class SceneImporter():
         self.reuse_material = options['reuse_material']
         self.reuse_group = options['reuse_existing_groups']
         self.max_instance = options['max_instance']
+        self.render_engine = options['render_engine']
         self.component_stats = defaultdict(list)
         self.component_skip = proxy_dict()
         self.component_depth = proxy_dict()
@@ -229,8 +230,8 @@ class SceneImporter():
         return component_stats
 
     def write_materials(self,materials):
-        if self.context.scene.render.engine != 'CYCLES':
-            self.context.scene.render.engine = 'CYCLES'
+        if self.context.scene.render.engine != self.render_engine:
+            self.context.scene.render.engine = self.render_engine
 
         self.materials = {}
         self.materials_scales = {}
@@ -239,7 +240,8 @@ class SceneImporter():
         else:
             bmat = bpy.data.materials.new('Material')
             bmat.diffuse_color = (.8, .8, .8)
-            bmat.use_nodes = True
+            if self.render_engine == 'CYCLES':
+                bmat.use_nodes = True
             self.materials['Material'] = bmat
 
 
@@ -261,7 +263,7 @@ class SceneImporter():
                 if a < 255:
                     bmat.alpha = a / 256.0
                 bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
-                bmat.use_nodes = True
+                
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
                     tmp_name = os.path.join(tempfile.gettempdir() , tex_name)
@@ -270,9 +272,17 @@ class SceneImporter():
                     img = bpy.data.images.load(tmp_name)
                     img.pack()
                     os.remove(tmp_name)
-                    n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
-                    n.image = img
-                    bmat.node_tree.links.new(n.outputs['Color'], bmat.node_tree.nodes['Diffuse BSDF'].inputs['Color'] )
+
+                    if self.render_engine == 'CYCLES':
+                        bmat.use_nodes = True
+                        n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
+                        n.image = img
+                        bmat.node_tree.links.new(n.outputs['Color'], bmat.node_tree.nodes['Diffuse BSDF'].inputs['Color'] )
+                    else:
+                        btex = bpy.data.textures.new(tex_name, 'IMAGE')
+                        btex.image = img
+                        slot = bmat.texture_slots.add()
+                        slot.texture = btex
 
                 self.materials[name] = bmat
             else:
@@ -287,6 +297,7 @@ class SceneImporter():
         verts = []
         faces = []
         mat_index = []
+        smooth = []
         mats = keep_offset()
         seen = keep_offset()
         uv_list = []
@@ -316,6 +327,12 @@ class SceneImporter():
                     verts.append(v)
                 uvs.append(uv)
 
+            smooth_edge = False
+
+            for edge in f.edges:
+                if edge.GetSmooth() == True:
+                    smooth_edge = True
+                    break
 
             for face in tri:
                 f0, f1, f2 = face[0], face[1], face[2]
@@ -331,6 +348,7 @@ class SceneImporter():
                                      uvs[f1][0], uvs[f1][1],
                                      uvs[f2][0], uvs[f2][1],
                                      0, 0 ) )
+                smooth.append(smooth_edge)
                 mat_index.append(mat_number)
 
         # verts, faces, uv_list, mat_index, mats = entities.get__triangles_lists(default_material)
@@ -354,8 +372,13 @@ class SceneImporter():
                 if bmat.alpha < 1.0:
                     alpha = True
                 try:
-                    if 'Image Texture' in bmat.node_tree.nodes.keys():
-                        uvs_used = True
+                    if self.render_engine == 'CYCLES':
+                        if 'Image Texture' in bmat.node_tree.nodes.keys():
+                            uvs_used = True
+                    else:
+                        for ts in bmat.texture_slots:
+                            if ts is not None and ts.texture_coords is not None:
+                                uvs_used = True
                 except AttributeError as e:
                     uvs_used = False
         else:
@@ -364,6 +387,9 @@ class SceneImporter():
         me.vertices.foreach_set("co", unpack_list(verts))
         me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
         me.tessfaces.foreach_set("material_index", mat_index)
+        me.tessfaces.foreach_set("use_smooth", smooth)
+
+        print('tessfaces: %i smoothie %i' % (len(faces), len(smooth)))
 
         if uvs_used:
             me.tessface_uv_textures.new()
@@ -641,7 +667,12 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
     scenes_as_camera = BoolProperty(name="Scenes", description="Import Active view as camera", default=True)
     import_scene = StringProperty(name="Import Scene", description="Name of the Sketchup scene to import", default="")
     reuse_existing_groups = BoolProperty(name="Reuse groups", description="Use existing blender groups to instance componenets with", default=False)
-
+    render_engine = EnumProperty(
+        name="Render Engine",
+        items=(('CYCLES', "Cycles Render", ""),
+                ('BLENDER_RENDER', "Blender Render", "")
+                ),
+        default='CYCLES')
     def execute(self, context):
         keywords = self.as_keywords(ignore=("axis_forward",
                                             "axis_up",
@@ -664,6 +695,8 @@ class ImportSKP(bpy.types.Operator, ImportHelper):
         row = layout.row(align=True)
         row.prop(self, "import_scene")
         row.prop(self, "reuse_existing_groups")
+        row = layout.row(align=True)
+        row.prop(self, "render_engine")
 
 
 class ExportSKP(bpy.types.Operator, ExportHelper):

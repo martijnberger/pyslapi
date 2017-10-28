@@ -22,6 +22,7 @@ from slapi.model.material cimport *
 from slapi.model.group cimport *
 from slapi.model.texture cimport *
 from slapi.model.scene cimport *
+from slapi.model.edge cimport *
 from slapi.model.layer cimport *
 from slapi.model.face cimport *
 from slapi.model.mesh_helper cimport *
@@ -201,6 +202,25 @@ cdef class Vector3D:
     property z:
         def __get__(self): return self.p.z
         def __set__(self, double z): self.p.z = z
+
+cdef class Edge:
+    cdef SUEdgeRef edge
+
+    def __cinit__(self):
+        self.edge.ptr = <void *> 0
+
+    cdef set_ptr(self, void* ptr):
+        self.edge.ptr = ptr
+
+    def GetSoft(self):
+        cdef bool soft_flag = 0
+        check_result(SUEdgeGetSoft(self.edge, &soft_flag))
+        return soft_flag
+
+    def GetSmooth(self):
+        cdef bool smooth_flag = 0
+        check_result(SUEdgeGetSmooth(self.edge, &smooth_flag))
+        return smooth_flag
 
 cdef class Plane3D:
     cdef Plane3D p
@@ -636,6 +656,24 @@ cdef class Face:
             free(stq)
             free(indices)
             return (vertices_list, triangles_list, uv_list)
+
+    property edges:
+        def __get__(self):
+            cdef size_t edge_count = 0
+            check_result(SUFaceGetNumEdges(self.face_ref, &edge_count))
+            cdef SUEdgeRef*edges_array = <SUEdgeRef*>malloc(sizeof(SUEdgeRef) * edge_count)
+            cdef size_t count = 0
+            check_result(SUFaceGetEdges(self.face_ref, edge_count, edges_array, &count))
+            
+            edges_list = []
+
+            for i in range(count):
+                e = Edge()
+                e.edge.ptr = edges_array[i].ptr
+                edges_list.append(e)
+
+            free(edges_array)
+            return edges_list
 
     property material:
         def __get__(self):
