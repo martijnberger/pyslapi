@@ -17,7 +17,7 @@ __license__ = "GPL"
 bl_info = {
     "name": "Sketchup importer",
     "author": "Martijn Berger",
-    "version": (0, 1, 5, 'dev'),
+    "version": (0, 19, 0, 'dev'),
     "blender": (2, 7, 6),
     "description": "import/export Sketchup skp files",
     "warning": "Very early preview",
