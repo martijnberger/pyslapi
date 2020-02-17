@@ -17,8 +17,8 @@ __license__ = "GPL"
 bl_info = {
     "name": "Sketchup importer",
     "author": "Martijn Berger",
-    "version": (0, 19, 0, 'dev'),
-    "blender": (2, 7, 6),
+    "version": (0, 20, 0, 'dev'),
+    "blender": (2, 81, 0),
     "description": "import/export Sketchup skp files",
     "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
@@ -36,9 +36,7 @@ from mathutils import Matrix, Vector, Quaternion
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
 from bpy_extras.io_utils import ImportHelper, unpack_list, unpack_face_list, ExportHelper
-from extensions_framework import log
 from .SKPutil import *
-
 
 class SketchupAddonPreferences(AddonPreferences):
     bl_idname = __name__
@@ -57,7 +55,7 @@ class SketchupAddonPreferences(AddonPreferences):
 
 def sketchupLog(*args):
     if len(args) > 0:
-        log(' '.join(['%s'%a for a in args]), module_name='Sketchup')
+        print('Sketchup: ' + ' '.join(['%s'%a for a in args]))
 
 
 class SceneImporter():
@@ -722,14 +720,14 @@ def menu_func_export(self, context):
 def register():
     bpy.utils.register_class(SketchupAddonPreferences)
     bpy.utils.register_class(ImportSKP)
-    bpy.types.INFO_MT_file_import.append(menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.utils.register_class(ExportSKP)
-    bpy.types.INFO_MT_file_export.append(menu_func_export)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
 def unregister():
     bpy.utils.unregister_class(ImportSKP)
-    bpy.types.INFO_MT_file_import.remove(menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.utils.unregister_class(ExportSKP)
-    bpy.types.INFO_MT_file_export.remove(menu_func_export)
+    bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(SketchupAddonPreferences)
