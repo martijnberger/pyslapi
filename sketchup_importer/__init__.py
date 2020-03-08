@@ -18,7 +18,7 @@ bl_info = {
     "name": "Sketchup importer",
     "author": "Martijn Berger",
     "version": (0, 20, 0, 'dev'),
-    "blender": (2, 81, 0),
+    "blender": (2, 82, 0),
     "description": "import/export Sketchup skp files",
     "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
@@ -87,7 +87,7 @@ class SceneImporter():
         sketchupLog('importing skp %r' % self.filepath)
 
         addon_name = __name__.split('.')[0]
-        self.prefs = context.user_preferences.addons[addon_name].preferences
+        self.prefs = context.preferences.addons[addon_name].preferences
 
         time_main = time.time()
 
@@ -205,9 +205,11 @@ class SceneImporter():
         for group in entities.groups:
             if self.layers_skip and group.layer in self.layers_skip:
                 continue
+            print(transform)
+            print(Matrix(group.transform))
             self.analyze_entities(group.entities,
                                   "G-" + group.name,
-                                  transform * Matrix(group.transform),
+                                  transform @ Matrix(group.transform),
                                   default_material=inherent_default_mat(group.material, default_material),
                                   etype=EntityType.group,
                                   component_stats=component_stats)
@@ -258,9 +260,7 @@ class SceneImporter():
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
                 tex = mat.texture
-                if a < 255:
-                    bmat.alpha = a / 256.0
-                bmat.diffuse_color = (r / 256.0, g / 256.0, b / 256.0)
+                bmat.diffuse_color = (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
                 
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
@@ -293,7 +293,7 @@ class SceneImporter():
         if mesh_key in self.component_meshes:
             return self.component_meshes[mesh_key]
         verts = []
-        faces = []
+        loops_vert_idx = []
         mat_index = []
         smooth = []
         mats = keep_offset()
@@ -317,6 +317,8 @@ class SceneImporter():
 
             vs, tri, uvs = f.tessfaces
 
+            num_loops = 0
+
             mapping = {}
             for i, (v, uv) in enumerate(zip(vs, uvs)):
                 l = len(seen)
@@ -334,14 +336,15 @@ class SceneImporter():
 
             for face in tri:
                 f0, f1, f2 = face[0], face[1], face[2]
+                num_loops += 1
                 if mapping[f2] == 0 : ## eeekadoodle dance
-                    faces.append( ( mapping[f2], mapping[f0], mapping[f1] ) )
+                    loops_vert_idx.extend( [mapping[f2], mapping[f0], mapping[f1]] )
                     uv_list.append(( uvs[f2][0], uvs[f2][1],
                                      uvs[f0][0], uvs[f0][1],
                                      uvs[f1][0], uvs[f1][1],
                                      0, 0 ) )
                 else:
-                    faces.append( ( mapping[f0], mapping[f1], mapping[f2] ) )
+                    loops_vert_idx.extend( [mapping[f0], mapping[f1], mapping[f2]]  )
                     uv_list.append(( uvs[f0][0], uvs[f0][1],
                                      uvs[f1][0], uvs[f1][1],
                                      uvs[f2][0], uvs[f2][1],
@@ -357,7 +360,7 @@ class SceneImporter():
         me = bpy.data.meshes.new(name)
 
         me.vertices.add(len(verts))
-        me.tessfaces.add(len(faces))
+        me.loops.add(num_loops)
 
         if len(mats) >= 1:
             mats_sorted = OrderedDict(sorted(mats.items(), key=lambda x: x[1]))
@@ -367,8 +370,8 @@ class SceneImporter():
                 except KeyError as e:
                     bmat = self.materials["Material"]
                 me.materials.append(bmat)
-                if bmat.alpha < 1.0:
-                    alpha = True
+                # if bmat.alpha < 1.0:
+                #     alpha = True
                 try:
                     if self.render_engine == 'CYCLES':
                         if 'Image Texture' in bmat.node_tree.nodes.keys():
@@ -383,15 +386,16 @@ class SceneImporter():
             sketchupLog("WARNING OBJECT {} HAS NO MATERIAL".format(name))
 
         me.vertices.foreach_set("co", unpack_list(verts))
-        me.tessfaces.foreach_set("vertices_raw", unpack_face_list(faces))
-        me.tessfaces.foreach_set("material_index", mat_index)
-        me.tessfaces.foreach_set("use_smooth", smooth)
+        print(loops_vert_idx)
+        me.loops.foreach_set("vertex_index", loops_vert_idx)
+        #me.loop_triangles.foreach_set("material_index", mat_index)
+        #me.loop_triangles.foreach_set("use_smooth", smooth)
 
         print('tessfaces: %i smoothie %i' % (len(faces), len(smooth)))
 
         if uvs_used:
             me.tessface_uv_textures.new()
-            for i in range(len(faces)):
+            for i in range(len(loops_vert_idx)):
                 me.tessface_uv_textures[0].data[i].uv_raw = uv_list[i]
 
         me.update(calc_edges=True)
@@ -412,7 +416,7 @@ class SceneImporter():
             if alpha > 0.01 and alpha < 1.0:
                 ob.show_transparent = True
             me.update(calc_edges=True)
-            self.context.scene.objects.link(ob)
+            bpy.context.collection.objects.link(ob)
 
         for group in entities.groups:
             if group.hidden:
@@ -421,7 +425,7 @@ class SceneImporter():
                 continue
             self.write_entities(group.entities,
                                 "G-" + group_safe_name(group.name),
-                                parent_tranform * Matrix(group.transform),
+                                parent_tranform @ Matrix(group.transform),
                                 default_material=inherent_default_mat(group.material, default_material),
                                 etype=EntityType.group)
 
