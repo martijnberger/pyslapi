@@ -32,6 +32,9 @@ cdef extern from "SketchUpAPI/slapi.h":
         SU_ERROR_ENTITY_LOCKED          # The entity being modified is locked
         SU_ERROR_INVALID_OPERATION      # The requested operation is invalid.
 
+cdef extern from "SketchupAPI/application/application.h":
+    SU_RESULT SUApplicationGetActiveModel(SUModelRef* model)
+
 
 cdef extern from "SketchupAPI/sketchup_info.h":
     cdef enum SUEdition:

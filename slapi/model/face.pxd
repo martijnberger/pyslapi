@@ -4,7 +4,7 @@ from slapi.model.defs cimport *
 from slapi.geometry cimport *
 from slapi.transformation cimport SUTransformation
 from slapi.unicodestring cimport *
-from geometry_input cimport *
+from slapi.model.geometry_input cimport *
 
 cdef extern from "SketchUpAPI/model/face.h":
     SUEntityRef SUFaceToEntity(SUFaceRef face)

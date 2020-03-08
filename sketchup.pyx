@@ -642,16 +642,18 @@ cdef class Face:
             vertices_list = []
             uv_list = []
             for i in range(got_vertex_count):
-                vertices_list.append((m(vertices[i].x), m(vertices[i].y), m(vertices[i].z)))
+                ind = int(i)
+                vertices_list.append((m(vertices[ind].x), m(vertices[ind].y), m(vertices[ind].z)))
             for i in range(got_stq_count):
                 z = stq[i].z
                 if z == 0:
                     z = 1.0
-                uv_list.append((stq[i].x / z * self.s_scale, stq[i].y / z * self.t_scale))
+                ind = int(i)
+                uv_list.append((stq[ind].x / z * self.s_scale, stq[ind].y / z * self.t_scale))
             triangles_list = []
             for ii in range(index_count / 3):
-                i = ii * 3
-                triangles_list.append((indices[i], indices[i + 1], indices[i + 2]))
+                ind = int(ii * 3)
+                triangles_list.append((indices[ind], indices[ind + 1], indices[ind + 2]))
             free(vertices)
             free(stq)
             free(indices)
