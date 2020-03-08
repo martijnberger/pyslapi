@@ -29,6 +29,9 @@ cdef extern from "SketchUpAPI/slapi.h":
         SU_ERROR_PARTIAL_SUCCESS        # The requested operation was not fully completed but it returned an intermediate successful result.
         SU_ERROR_UNSUPPORTED            # The requested operation is not supported
         SU_ERROR_INVALID_ARGUMENT       # An argument contains invalid information
+        SU_ERROR_ENTITY_LOCKED          # The entity being modified is locked
+        SU_ERROR_INVALID_OPERATION      # The requested operation is invalid.
+
 
 cdef extern from "SketchupAPI/sketchup_info.h":
     cdef enum SUEdition:
