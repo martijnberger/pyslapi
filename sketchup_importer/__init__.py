@@ -18,10 +18,10 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, see http://www.gnu.org/licenses
 '''
 
+import math
 import os
 import tempfile
 import time
-from math import pi
 
 import bpy
 from bpy.props import (BoolProperty, EnumProperty, FloatProperty, IntProperty,
@@ -315,13 +315,15 @@ class SceneImporter():
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
                 tex = mat.texture
-                bmat.diffuse_color = (r / 255.0, g / 255.0, b / 255.0,
-                                      a / 255.0)
+                bmat.diffuse_color = (math.pow((r / 255.0), 2.2),
+                                      math.pow((g / 255.0), 2.2),
+                                      math.pow((b / 255.0), 2.2),
+                                      round((a / 255.0), 2))  # sRGB to Linear
 
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
                     tmp_name = os.path.join(tempfile.gettempdir(), tex_name)
-                    # skp_log(f"Texture saved temporarily at {tmp_name}")z
+                    # skp_log(f"Texture saved temporarily at {tmp_name}")
                     tex.write(tmp_name)
                     img = bpy.data.images.load(tmp_name)
                     img.pack()
@@ -764,7 +766,7 @@ class SceneImporter():
             skp_log(f"Camera:'{name}'' is in Orthographic Mode.")
             cam.type = 'ORTHO'
         else:
-            cam.angle = (pi * fov / 180) * aspect_ratio
+            cam.angle = (math.pi * fov / 180) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
         cam.name = name
 
@@ -804,7 +806,7 @@ class ImportSKP(Operator, ImportHelper):
     )
 
     import_camera: BoolProperty(
-        name="Last View In SketchUP As Camera View",
+        name="Last View In SketchUp As Camera View",
         description="Import last saved view in SketchUp as a Blender Camera.",
         default=False
     )
@@ -882,7 +884,6 @@ class ImportSKP(Operator, ImportHelper):
         row.prop(self, "dedub_only")
         row = layout.row()
         row.prop(self, "reuse_existing_groups")
-        # row = layout.row()
         col = layout.column()
         col.label(text="- Instanciate When Similar Objects Are Over -")
         split = col.split(factor=0.5)
