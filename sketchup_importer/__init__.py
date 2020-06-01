@@ -37,7 +37,7 @@ from .SKPutil import *
 bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
-    "version": (0, 20, 2),
+    "version": (0, 22, 0),
     "blender": (2, 82, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
@@ -227,14 +227,14 @@ class SceneImporter():
                     pass
                 elif comp_def and depth == i:
                     gname = group_name(name, mat)
-                    if self.reuse_group and gname in bpy.data.groups:
+                    if self.reuse_group and gname in bpy.data.collections:
                         #print("Group {} already defined".format(gname))
                         self.component_skip[(name, mat)] = comp_def.entities
-                        # grp_name = bpy.data.groups[gname]
+                        # grp_name = bpy.data.collections[gname]
                         self.group_written[(name,
-                                            mat)] = bpy.data.groups[gname]
+                                            mat)] = bpy.data.collections[gname]
                     else:
-                        group = bpy.data.groups.new(name=gname)
+                        group = bpy.data.collections.new(name=gname)
                         #print("Component written as group".format(gname))
                         self.conponent_def_as_group(comp_def.entities,
                                                     name,
