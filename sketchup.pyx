@@ -651,7 +651,7 @@ cdef class Face:
                 ind = int(i)
                 uv_list.append((stq[ind].x / z * self.s_scale, stq[ind].y / z * self.t_scale))
             triangles_list = []
-            for ii in range(index_count / 3):
+            for ii in range(index_count // 3):
                 ind = int(ii * 3)
                 triangles_list.append((indices[ind], indices[ind + 1], indices[ind + 2]))
             free(vertices)

@@ -37,7 +37,7 @@ from .SKPutil import *
 bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
-    "version": (0, 22, 0),
+    "version": (0, '21 (Beta)'),
     "blender": (2, 82, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
@@ -79,7 +79,7 @@ class SketchupAddonPreferences(AddonPreferences):
 def skp_log(*args):
 
     if len(args) > 0:
-        print('SKP | ' + ' '.join(['%s' % a for a in args]))
+        print('SU | ' + ' '.join(['%s' % a for a in args]))
 
 
 class SceneImporter():
@@ -104,7 +104,7 @@ class SceneImporter():
         self.reuse_material = options['reuse_material']
         self.reuse_group = options['reuse_existing_groups']
         self.max_instance = options['max_instance']
-        self.render_engine = options['render_engine']
+        # self.render_engine = options['render_engine']
         self.component_stats = defaultdict(list)
         self.component_skip = proxy_dict()
         self.component_depth = proxy_dict()
@@ -252,7 +252,10 @@ class SceneImporter():
                          default_material="Material",
                          etype=EntityType.none,
                          component_stats=None,
-                         component_skip=[]):
+                         component_skip=None):
+
+        if component_skip is None:
+            component_skip = []
 
         if etype == EntityType.component:
             component_stats[(name, default_material)].append(transform)
@@ -288,8 +291,8 @@ class SceneImporter():
 
     def write_materials(self, materials):
 
-        if self.context.scene.render.engine != self.render_engine:
-            self.context.scene.render.engine = self.render_engine
+        if self.context.scene.render.engine != 'CYCLES':
+            self.context.scene.render.engine = 'CYCLES'
 
         self.materials = {}
         self.materials_scales = {}
@@ -298,8 +301,8 @@ class SceneImporter():
         else:
             bmat = bpy.data.materials.new('Material')
             bmat.diffuse_color = (.8, .8, .8, 0)
-            if self.render_engine == 'CYCLES':
-                bmat.use_nodes = True
+            # if self.render_engine == 'CYCLES':
+            bmat.use_nodes = True
             self.materials['Material'] = bmat
 
         for mat in materials:
@@ -320,6 +323,8 @@ class SceneImporter():
                                       math.pow((b / 255.0), 2.2),
                                       round((a / 255.0), 2))  # sRGB to Linear
 
+                bmat.use_nodes = True
+                
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
                     tmp_name = os.path.join(tempfile.gettempdir(), tex_name)
@@ -329,18 +334,18 @@ class SceneImporter():
                     img.pack()
                     os.remove(tmp_name)
 
-                    if self.render_engine == 'CYCLES':
-                        bmat.use_nodes = True
-                        n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
-                        n.image = img
-                        bmat.node_tree.links.new(
-                            n.outputs['Color'], bmat.node_tree.
-                            nodes['Principled BSDF'].inputs['Base Color'])
-                    else:
-                        btex = bpy.data.textures.new(tex_name, 'IMAGE')
-                        btex.image = img
-                        slot = bmat.texture_slots.add()
-                        slot.texture = btex
+                    # if self.render_engine == 'CYCLES':
+                    #     bmat.use_nodes = True
+                    n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
+                    n.image = img
+                    bmat.node_tree.links.new(
+                        n.outputs['Color'], bmat.node_tree.
+                        nodes['Principled BSDF'].inputs['Base Color'])
+                    # else:
+                    #     btex = bpy.data.textures.new(tex_name, 'IMAGE')
+                    #     btex.image = img
+                    #     slot = bmat.texture_slots.add()
+                    #     slot.texture = btex
 
                 self.materials[name] = bmat
             else:
@@ -435,13 +440,13 @@ class SceneImporter():
                 # if bmat.alpha < 1.0:
                 #     alpha = True
                 try:
-                    if self.render_engine == 'CYCLES':
-                        if 'Image Texture' in bmat.node_tree.nodes.keys():
-                            uvs_used = True
-                    else:
-                        for ts in bmat.texture_slots:
-                            if ts is not None and ts.texture_coords is not None:
-                                uvs_used = True
+                    # if self.render_engine == 'CYCLES':
+                    if 'Image Texture' in bmat.node_tree.nodes.keys():
+                        uvs_used = True
+                    # else:
+                    #     for ts in bmat.texture_slots:
+                    #         if ts is not None and ts.texture_coords is not None:
+                    #             uvs_used = True
                 except AttributeError as _e:
                     uvs_used = False
         else:
@@ -853,13 +858,13 @@ class ImportSKP(Operator, ImportHelper):
         default=False
     )
 
-    render_engine: EnumProperty(
-        name="Default Shaders In :",
-        items=(('CYCLES', "Cycles", ""),
-               #    ('BLENDER_RENDER', "Blender Render", "")
-               ),
-        default='CYCLES'
-    )
+    # render_engine: EnumProperty(
+    #     name="Default Shaders In :",
+    #     items=(('CYCLES', "Cycles", ""),
+    #            #    ('BLENDER_RENDER', "Blender Render", "")
+    #            ),
+    #     default='CYCLES'
+    # )
 
     def execute(self, context):
 
@@ -895,9 +900,9 @@ class ImportSKP(Operator, ImportHelper):
         row = layout.row()
         row.use_property_split = True
         row.prop(self, "import_scene")
-        row = layout.row()
-        row.use_property_split = True
-        row.prop(self, "render_engine")
+        # row = layout.row()
+        # row.use_property_split = True
+        # row.prop(self, "render_engine")
 
 
 class ExportSKP(Operator, ExportHelper):
