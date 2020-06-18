@@ -324,10 +324,17 @@ class SceneImporter():
                                       math.pow((b / 255.0), 2.2),
                                       round((a / 255.0), 2))  # sRGB to Linear
 
+                if round((a / 255.0), 2) < 1:
+                    bmat.blend_method = 'BLEND'
+
                 bmat.use_nodes = True
                 default_shader = bmat.node_tree.nodes['Principled BSDF']
+
                 default_shader_base_color = default_shader.inputs['Base Color']
                 default_shader_base_color.default_value = bmat.diffuse_color
+
+                default_shader_alpha = default_shader.inputs['Alpha']
+                default_shader_alpha.default_value = round((a / 255.0), 2)
 
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
@@ -340,10 +347,11 @@ class SceneImporter():
 
                     # if self.render_engine == 'CYCLES':
                     #     bmat.use_nodes = True
-                    n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
-                    n.image = img
+                    tex_node = bmat.node_tree.nodes.new('ShaderNodeTexImage')
+                    tex_node.image = img
+                    tex_node.location = Vector((-750, 225))
                     bmat.node_tree.links.new(
-                        n.outputs['Color'], default_shader_base_color)
+                        tex_node.outputs['Color'], default_shader_base_color)
                     # else:
                     #     btex = bpy.data.textures.new(tex_name, 'IMAGE')
                     #     btex.image = img
