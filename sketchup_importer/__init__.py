@@ -38,11 +38,12 @@ bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
     "version": (0, '21 (Beta)'),
-    "blender": (2, 82, 0),
+    "blender": (2, 83, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
-    "tracker_url": "",
+    "doc_url": "https://github.com/arindam-m/pyslapi/wiki",
+    "tracker_url": "https://github.com/arindam-m/pyslapi/wiki/Bug-Report",
     "category": "Import-Export",
     "location": "File > Import"
 }
@@ -220,22 +221,22 @@ class SceneImporter():
             for k, v in component_stats.items():
                 name, mat = k
                 depth = self.component_depth[name]
-                #print(k, len(v), depth)
+                # print(k, len(v), depth)
                 comp_def = self.skp_components[name]
                 if comp_def and depth == 1:
-                    #self.component_skip[(name,mat)] = comp_def.entities
+                    # self.component_skip[(name,mat)] = comp_def.entities
                     pass
                 elif comp_def and depth == i:
                     gname = group_name(name, mat)
                     if self.reuse_group and gname in bpy.data.collections:
-                        #print("Group {} already defined".format(gname))
+                        # print("Group {} already defined".format(gname))
                         self.component_skip[(name, mat)] = comp_def.entities
                         # grp_name = bpy.data.collections[gname]
                         self.group_written[(name,
                                             mat)] = bpy.data.collections[gname]
                     else:
                         group = bpy.data.collections.new(name=gname)
-                        #print("Component written as group".format(gname))
+                        # print("Component written as group".format(gname))
                         self.conponent_def_as_group(comp_def.entities,
                                                     name,
                                                     Matrix(),
@@ -324,7 +325,10 @@ class SceneImporter():
                                       round((a / 255.0), 2))  # sRGB to Linear
 
                 bmat.use_nodes = True
-                
+                default_shader = bmat.node_tree.nodes['Principled BSDF']
+                default_shader_base_color = default_shader.inputs['Base Color']
+                default_shader_base_color.default_value = bmat.diffuse_color
+
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
                     tmp_name = os.path.join(tempfile.gettempdir(), tex_name)
@@ -339,8 +343,7 @@ class SceneImporter():
                     n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
                     n.image = img
                     bmat.node_tree.links.new(
-                        n.outputs['Color'], bmat.node_tree.
-                        nodes['Principled BSDF'].inputs['Base Color'])
+                        n.outputs['Color'], default_shader_base_color)
                     # else:
                     #     btex = bpy.data.textures.new(tex_name, 'IMAGE')
                     #     btex.image = img
@@ -729,8 +732,8 @@ class SceneImporter():
             dob = bpy.data.objects.new("DUPLI_" + name, dme)
             dob.dupli_type = 'FACES'
             dob.location = main_loc
-            #dob.use_dupli_faces_scale = True
-            #dob.dupli_faces_scale = 10
+            # dob.use_dupli_faces_scale = True
+            # dob.dupli_faces_scale = 10
 
             ob = self.instance_object_or_group(name, default_material)
             ob.scale = real_scale
