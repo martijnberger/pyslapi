@@ -37,7 +37,7 @@ from .SKPutil import *
 bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
-    "version": (0, 21),
+    "version": (0, 21, 1),
     "blender": (2, 83, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
@@ -593,7 +593,7 @@ class SceneImporter():
                 name, default_material) in self.component_skip:
             ob = self.instance_object_or_group(name, default_material)
             ob.matrix_world = parent_tranform
-            self.context.scene.objects.link(ob)
+            self.context.collection.objects.link(ob)
             ob.layers = 18 * [False] + [True] + [False]
             group.objects.link(ob)
 
@@ -610,7 +610,7 @@ class SceneImporter():
             if alpha:
                 ob.show_transparent = True
             me.update(calc_edges=True)
-            self.context.scene.objects.link(ob)
+            self.context.collection.objects.link(ob)
             ob.layers = 18 * [False] + [True] + [False]
             group.objects.link(ob)
 
@@ -679,8 +679,8 @@ class SceneImporter():
                 (rot[0], rot[1], rot[2], rot[3]))
             ob.parent = dob
 
-            self.context.scene.objects.link(ob)
-            self.context.scene.objects.link(dob)
+            self.context.collection.objects.link(ob)
+            self.context.collection.objects.link(dob)
             skp_log(
                 "Complex group {} {} instanced {} times, scale -> {}".format(
                     name, default_material, len(verts), scale))
@@ -746,8 +746,8 @@ class SceneImporter():
             ob = self.instance_object_or_group(name, default_material)
             ob.scale = real_scale
             ob.parent = dob
-            self.context.scene.objects.link(ob)
-            self.context.scene.objects.link(dob)
+            self.context.collection.objects.link(ob)
+            self.context.collection.objects.link(dob)
             skp_log("Complex group {} {} instanced {} times".format(
                 name, default_material, f_count / 4))
 
