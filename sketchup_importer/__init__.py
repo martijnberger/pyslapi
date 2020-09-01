@@ -84,6 +84,7 @@ def skp_log(*args):
 
 
 class SceneImporter():
+
     def __init__(self):
 
         self.filepath = '/tmp/untitled.skp'
@@ -188,7 +189,7 @@ class SceneImporter():
             return {'FINISHED'}
 
         self.component_stats = defaultdict(list)
-        self.write_entities(self.skp_model.entities, "Sketchup",
+        self.write_entities(self.skp_model.entities, "Default_SU_Mesh",
                             Matrix.Identity(4))
 
         for k, _v in self.component_stats.items():
@@ -352,6 +353,8 @@ class SceneImporter():
                     tex_node.location = Vector((-750, 225))
                     bmat.node_tree.links.new(
                         tex_node.outputs['Color'], default_shader_base_color)
+                    bmat.node_tree.links.new(
+                        tex_node.outputs['Alpha'], default_shader_alpha)
                     # else:
                     #     btex = bpy.data.textures.new(tex_name, 'IMAGE')
                     #     btex.image = img
@@ -808,7 +811,7 @@ class SceneExporter():
 
 
 class ImportSKP(Operator, ImportHelper):
-    """Load a Trimble Sketchup SKP file"""
+    """Load a Trimble SketchUp SKP file"""
 
     bl_idname = "import_scene.skp"
     bl_label = "Import SKP"
@@ -859,7 +862,7 @@ class ImportSKP(Operator, ImportHelper):
 
     import_scene: StringProperty(
         name="Import A Scene :",
-        description="Import a specific Sketchup Scene",
+        description="Import a specific SketchUp Scene",
         default=""
     )
 
@@ -901,7 +904,7 @@ class ImportSKP(Operator, ImportHelper):
         row = layout.row()
         row.prop(self, "reuse_existing_groups")
         col = layout.column()
-        col.label(text="- Instanciate When Similar Objects Are Over -")
+        col.label(text="- Instantiate When Similar Objects Are Over -")
         split = col.split(factor=0.5)
         col = split.column()
         col.prop(self, "max_instance")
@@ -917,7 +920,7 @@ class ImportSKP(Operator, ImportHelper):
 
 
 class ExportSKP(Operator, ExportHelper):
-    """Load a Trimble Sketchup SKP file"""
+    """Load a Trimble SketchUp SKP file"""
 
     bl_idname = "export_scene.skp"
     bl_label = "Export SKP"
@@ -936,13 +939,13 @@ class ExportSKP(Operator, ExportHelper):
 def menu_func_import(self, context):
 
     self.layout.operator(ImportSKP.bl_idname,
-                         text="Import Sketchup Scene(.skp)")
+                         text="Import SketchUp Scene(.skp)")
 
 
 def menu_func_export(self, context):
 
     self.layout.operator(ExportSKP.bl_idname,
-                         text="Export Sketchup Scene(.skp)")
+                         text="Export SketchUp Scene(.skp)")
 
 
 def register():
