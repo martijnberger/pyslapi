@@ -9,3 +9,4 @@ SketchUpAPI.framework
 *.pyd
 *.so
 .vscode/
+**/env/

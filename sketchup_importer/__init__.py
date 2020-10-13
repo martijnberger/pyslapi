@@ -135,21 +135,28 @@ class SceneImporter():
                     skp_log(f"Importing Scene '{s.name}'")
                     self.scene = s
                     self.layers_skip = [l for l in s.layers]
-                    for l in s.layers:
-                        skp_log(f"SKIP: {l.name}")
+                    # for l in s.layers:
+                    #     skp_log(f"SKIP: {l.name}")
             if not self.layers_skip:
-                skp_log('Could not find scene: {}, importing default.'
+                skp_log("Scene: '{}' didn't have any invisible layers."
                         .format(options['import_scene']))
 
-        if not self.layers_skip:
-            self.layers_skip = [
-                l for l in self.skp_model.layers if not l.visible
-            ]
+        # if not self.layers_skip:
+        #     self.layers_skip = [
+        #         l for l in self.skp_model.layers if not l.visible
+        #     ]
 
-        skp_log('Skipping Layers ... ')
+        hidden_layers = [l.name for l in self.layers_skip]
 
-        for l in sorted([l.name for l in self.layers_skip]):
-            skp_log(l)
+        if self.layers_skip != []:
+            print('SU | Objects will not be loaded from invisible Layers/Tags!')
+            print(
+                'SU | These Layers/Tags are: \r',
+                end='')
+            print(*hidden_layers, sep=', ')
+
+        # for l in sorted([l.name for l in self.layers_skip]):
+        #     skp_log(l)
 
         self.skp_components = proxy_dict(
             self.skp_model.component_definition_as_dict)
@@ -782,8 +789,9 @@ class SceneImporter():
             # skp_log(f"Camera:'{name}' uses dynamic/screen aspect ratio.")
             aspect_ratio = self.aspect_ratio
         if fov == False:
-            skp_log(f"Camera:'{name}'' is in Orthographic Mode.")
+            skp_log(f"Camera:'{name}' is in Orthographic Mode.")
             cam.type = 'ORTHO'
+            cam.ortho_scale = 3.0
         else:
             cam.angle = (math.pi * fov / 180) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
@@ -815,13 +823,19 @@ class ImportSKP(Operator, ImportHelper):
 
     bl_idname = "import_scene.skp"
     bl_label = "Import SKP"
-    bl_options = {'PRESET', 'UNDO'}
+    bl_options = {'PRESET', 'REGISTER', 'UNDO'}
 
     filename_ext = ".skp"
 
     filter_glob: StringProperty(
         default="*.skp",
         options={'HIDDEN'},
+    )
+
+    scenes_as_camera: BoolProperty(
+        name="Scene(s) As Camera(s)",
+        description="Import SketchUp Scenes As Blender Camera.",
+        default=True
     )
 
     import_camera: BoolProperty(
@@ -836,8 +850,20 @@ class ImportSKP(Operator, ImportHelper):
         default=True
     )
 
+    dedub_only: BoolProperty(
+        name="Groups Only",
+        description="Import instanciated groups only.",
+        default=False
+    )
+
+    reuse_existing_groups: BoolProperty(
+        name="Reuse Groups",
+        description="Use existing Blender groups to instance componenets with.",
+        default=False
+    )
+
     max_instance: IntProperty(
-        name="Threshold :",
+        name="Instantiation Threshold :",
         default=50
     )
 
@@ -848,28 +874,10 @@ class ImportSKP(Operator, ImportHelper):
         default='FACE',
     )
 
-    dedub_only: BoolProperty(
-        name="Groups Only",
-        description="Import instanciated groups only.",
-        default=False
-    )
-
-    scenes_as_camera: BoolProperty(
-        name="Scene(s) As Camera(s)",
-        description="Import SketchUp Scenes As Blender Camera.",
-        default=True
-    )
-
     import_scene: StringProperty(
         name="Import A Scene :",
         description="Import a specific SketchUp Scene",
         default=""
-    )
-
-    reuse_existing_groups: BoolProperty(
-        name="Reuse Groups",
-        description="Use existing Blender groups to instance componenets with.",
-        default=False
     )
 
     # render_engine: EnumProperty(
@@ -904,9 +912,9 @@ class ImportSKP(Operator, ImportHelper):
         row = layout.row()
         row.prop(self, "reuse_existing_groups")
         col = layout.column()
-        col.label(text="- Instantiate When Similar Objects Are Over -")
-        split = col.split(factor=0.5)
-        col = split.column()
+        col.label(text="- Instantiate components, if they are more than -")
+        # split = col.split(factor=0.5)
+        # col = split.column()
         col.prop(self, "max_instance")
         row = layout.row()
         row.use_property_split = True
@@ -920,7 +928,7 @@ class ImportSKP(Operator, ImportHelper):
 
 
 class ExportSKP(Operator, ExportHelper):
-    """Load a Trimble SketchUp SKP file"""
+    """Export .blend into .skp file"""
 
     bl_idname = "export_scene.skp"
     bl_label = "Export SKP"
