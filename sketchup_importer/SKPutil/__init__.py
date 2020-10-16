@@ -61,7 +61,7 @@ def group_safe_name(name):
         global su_group_num
         su_group_num += 1
         padded_num_str = '{:03d}' .format(su_group_num)
-        su_group_num_str = 'Unnamed_' + padded_num_str
+        su_group_num_str = 'No_Name_' + padded_num_str
         return "{}{}".format(name, su_group_num_str)
 
     return name

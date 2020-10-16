@@ -130,6 +130,8 @@ class SceneImporter():
             return {'FINISHED'}
 
         if options['import_scene']:
+            options['scenes_as_camera'] = False
+            options['import_camera'] = True
             for s in self.skp_model.scenes:
                 if s.name == options['import_scene']:
                     skp_log(f"Importing Scene '{s.name}'")
@@ -146,9 +148,8 @@ class SceneImporter():
         #         l for l in self.skp_model.layers if not l.visible
         #     ]
 
-        hidden_layers = [l.name for l in self.layers_skip]
-
         if self.layers_skip != []:
+            hidden_layers = [l.name for l in self.layers_skip]
             print('SU | Objects will not be loaded from invisible Layers/Tags!')
             print(
                 'SU | These Layers/Tags are: \r',
@@ -163,6 +164,17 @@ class SceneImporter():
 
         skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
 
+        skp_main_coll = bpy.data.collections.new('SKP Scenes')
+        b_c = context
+        b_c.scene.collection.children.link(skp_main_coll)
+
+        # skp_scene_coll = bpy.data.collections.new('SKP Scenes')
+        # bpy.data.collections['SKP Imported Objects'].children.link(
+        #     skp_scene_coll)
+
+        layer_coll = b_c.view_layer.layer_collection.children['SKP Scenes']
+        b_c.view_layer.active_layer_collection = layer_coll
+
         if options['scenes_as_camera']:
             for s in self.skp_model.scenes:
                 self.write_camera(s.camera, s.name)
@@ -176,19 +188,21 @@ class SceneImporter():
                 active_cam = self.write_camera(self.skp_model.camera)
                 context.scene.camera = active_cam
 
-        _t1 = time.time()
+        _time_material = time.time()
         self.write_materials(self.skp_model.materials)
+        skp_log(
+            f'Materials imported in {(time.time() - _time_material):.4f} sec.')
 
-        skp_log(f'Materials imported in {(time.time() - _t1):.4f} sec.')
+        _time_component = time.time()
 
-        _t1 = time.time()
         D = SKP_util()
         SKP_util.layers_skip = self.layers_skip
 
         for c in self.skp_model.component_definitions:
             self.component_depth[c.name] = D.component_deps(c.entities)
 
-        skp_log(f'Component depths analyzed in {(time.time() - _t1):.4f} sec.')
+        skp_log(
+            f'Component depths analyzed in {(time.time() - _time_component):.4f} sec.')
 
         self.write_duplicateable_groups()
 
@@ -196,7 +210,25 @@ class SceneImporter():
             return {'FINISHED'}
 
         self.component_stats = defaultdict(list)
-        self.write_entities(self.skp_model.entities, "Default_SU_Mesh",
+
+        _time_entity = time.time()
+
+        skp_coll = bpy.data.collections.new('SKP Objects')
+        b_c = context
+        b_c.scene.collection.children.link(skp_coll)
+        layer_coll = b_c.view_layer.layer_collection.children[skp_coll.name]
+        b_c.view_layer.active_layer_collection = layer_coll
+
+        # outliners = [a for a in context.screen.areas if a.type == 'OUTLINER']
+        # c = context.copy()
+        # c["collection"] = bpy.data.collections["SKP Scenes"]
+        # for ol in outliners:
+        #     c["area"] = ol
+        #     bpy.ops.outliner.show_one_level(c, open=False)
+        #     ol.tag_redraw()
+        # b_c.view_layer.update()
+
+        self.write_entities(self.skp_model.entities, "_NCNG_Object",
                             Matrix.Identity(4))
 
         for k, _v in self.component_stats.items():
@@ -206,7 +238,9 @@ class SceneImporter():
             else:
                 self.instance_group_dupli_face(name, mat, self.component_stats)
 
-        skp_log(f'Entities imported in {(time.time() - _t1):.4f} sec.')
+        skp_log(
+            f'Entities imported in {(time.time() - _time_entity):.4f} sec.')
+
         skp_log('Finished importing in %.4f sec.\n' %
                 (time.time() - _time_main))
 
@@ -763,12 +797,12 @@ class SceneImporter():
 
         return
 
-    def write_camera(self, camera, name="Active Camera"):
+    def write_camera(self, camera, name="Last View"):
 
         pos, target, up = camera.GetOrientation()
         bpy.ops.object.add(type='CAMERA', location=pos)
         ob = self.context.object
-        ob.name = name
+        ob.name = "Cam : " + name
 
         z = (Vector(pos) - Vector(target))
         x = Vector(up).cross(z)
@@ -791,11 +825,11 @@ class SceneImporter():
         if fov == False:
             skp_log(f"Camera:'{name}' is in Orthographic Mode.")
             cam.type = 'ORTHO'
-            cam.ortho_scale = 3.0
+            # cam.ortho_scale = 3.0
         else:
             cam.angle = (math.pi * fov / 180) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
-        cam.name = name
+        cam.name = "Cam : " + name
 
 
 class SceneExporter():
