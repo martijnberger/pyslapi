@@ -83,6 +83,41 @@ def skp_log(*args):
         print('SU | ' + ' '.join(['%s' % a for a in args]))
 
 
+def create_nested_collection(coll_name):
+
+    context = bpy.context
+
+    main_coll_name = 'SKP Imported Data'
+
+    if not bpy.data.collections.get(main_coll_name):
+        skp_main_coll = bpy.data.collections.new(main_coll_name)
+        context.scene.collection.children.link(skp_main_coll)
+
+    skp_nested_coll = bpy.data.collections.new(coll_name)
+
+    bpy.data.collections[main_coll_name].children.link(skp_nested_coll)
+
+    view_layer_coll = context.view_layer.layer_collection
+    main_parent_coll = view_layer_coll.children[main_coll_name]
+
+    coll_set_to_active = main_parent_coll.children[coll_name]
+    context.view_layer.active_layer_collection = coll_set_to_active
+
+
+def hide_one_level():
+
+    context = bpy.context
+
+    outliners = [a for a in context.screen.areas if a.type == 'OUTLINER']
+    c = context.copy()
+    for ol in outliners:
+        c["area"] = ol
+        bpy.ops.outliner.show_one_level(c, open=False)
+        ol.tag_redraw()
+
+    # context.view_layer.update()
+
+
 class SceneImporter():
 
     def __init__(self):
@@ -151,9 +186,7 @@ class SceneImporter():
         if self.layers_skip != []:
             hidden_layers = [l.name for l in self.layers_skip]
             print('SU | Objects will not be loaded from invisible Layers/Tags!')
-            print(
-                'SU | These Layers/Tags are: \r',
-                end='')
+            print('SU | These Layers/Tags are: \r', end='')
             print(*hidden_layers, sep=', ')
 
         # for l in sorted([l.name for l in self.layers_skip]):
@@ -164,16 +197,7 @@ class SceneImporter():
 
         skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
 
-        skp_main_coll = bpy.data.collections.new('SKP Scenes')
-        b_c = context
-        b_c.scene.collection.children.link(skp_main_coll)
-
-        # skp_scene_coll = bpy.data.collections.new('SKP Scenes')
-        # bpy.data.collections['SKP Imported Objects'].children.link(
-        #     skp_scene_coll)
-
-        layer_coll = b_c.view_layer.layer_collection.children['SKP Scenes']
-        b_c.view_layer.active_layer_collection = layer_coll
+        create_nested_collection('SKP Scenes (as Cameras)')
 
         if options['scenes_as_camera']:
             for s in self.skp_model.scenes:
@@ -190,8 +214,8 @@ class SceneImporter():
 
         _time_material = time.time()
         self.write_materials(self.skp_model.materials)
-        skp_log(
-            f'Materials imported in {(time.time() - _time_material):.4f} sec.')
+        skp_log('Materials imported ' +
+                f'in {(time.time() - _time_material):.4f} sec.')
 
         _time_component = time.time()
 
@@ -201,34 +225,22 @@ class SceneImporter():
         for c in self.skp_model.component_definitions:
             self.component_depth[c.name] = D.component_deps(c.entities)
 
-        skp_log(
-            f'Component depths analyzed in {(time.time() - _time_component):.4f} sec.')
+        skp_log('Component depths analyzed ' +
+                f'in {(time.time() - _time_component):.4f} sec.')
 
         self.write_duplicateable_groups()
 
         if options["dedub_only"]:
             return {'FINISHED'}
 
-        self.component_stats = defaultdict(list)
+        # self.component_stats = defaultdict(list)
 
         _time_entity = time.time()
 
-        skp_coll = bpy.data.collections.new('SKP Objects')
-        b_c = context
-        b_c.scene.collection.children.link(skp_coll)
-        layer_coll = b_c.view_layer.layer_collection.children[skp_coll.name]
-        b_c.view_layer.active_layer_collection = layer_coll
+        create_nested_collection('SKP Mesh Objects')
 
-        # outliners = [a for a in context.screen.areas if a.type == 'OUTLINER']
-        # c = context.copy()
-        # c["collection"] = bpy.data.collections["SKP Scenes"]
-        # for ol in outliners:
-        #     c["area"] = ol
-        #     bpy.ops.outliner.show_one_level(c, open=False)
-        #     ol.tag_redraw()
-        # b_c.view_layer.update()
-
-        self.write_entities(self.skp_model.entities, "_NCNG_Object",
+        self.write_entities(self.skp_model.entities,
+                            "_(Loose Entity)",
                             Matrix.Identity(4))
 
         for k, _v in self.component_stats.items():
@@ -238,11 +250,13 @@ class SceneImporter():
             else:
                 self.instance_group_dupli_face(name, mat, self.component_stats)
 
-        skp_log(
-            f'Entities imported in {(time.time() - _time_entity):.4f} sec.')
+        skp_log('Entities imported ' +
+                f'in {(time.time() - _time_entity):.4f} sec.')
 
         skp_log('Finished importing in %.4f sec.\n' %
                 (time.time() - _time_main))
+
+        hide_one_level()
 
         return {'FINISHED'}
 
