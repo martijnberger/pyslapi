@@ -37,7 +37,7 @@ from .SKPutil import *
 bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
-    "version": (0, 21, 1),
+    "version": (0, 22, 'dev_branch'),
     "blender": (2, 83, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
@@ -47,6 +47,13 @@ bl_info = {
     "category": "Import-Export",
     "location": "File > Import"
 }
+
+DEBUG = True
+LOGS = False
+LIMITED_LOGS = False
+
+if not LOGS:
+    LIMITED_LOGS = True
 
 
 class SketchupAddonPreferences(AddonPreferences):
@@ -93,9 +100,9 @@ def create_nested_collection(coll_name):
         skp_main_coll = bpy.data.collections.new(main_coll_name)
         context.scene.collection.children.link(skp_main_coll)
 
-    skp_nested_coll = bpy.data.collections.new(coll_name)
-
-    bpy.data.collections[main_coll_name].children.link(skp_nested_coll)
+    if not bpy.data.collections.get(coll_name):
+        skp_nested_coll = bpy.data.collections.new(coll_name)
+        bpy.data.collections[main_coll_name].children.link(skp_nested_coll)
 
     view_layer_coll = context.view_layer.layer_collection
     main_parent_coll = view_layer_coll.children[main_coll_name]
@@ -150,7 +157,8 @@ class SceneImporter():
         ren_res_y = context.scene.render.resolution_y
         self.aspect_ratio = ren_res_x / ren_res_y
 
-        skp_log(f'Importing: {self.filepath}')
+        if LOGS:
+            skp_log(f'Importing: {self.filepath}')
 
         addon_name = __name__.split('.')[0]
         self.prefs = context.preferences.addons[addon_name].preferences
@@ -160,8 +168,9 @@ class SceneImporter():
         try:
             self.skp_model = sketchup.Model.from_file(self.filepath)
         except Exception as e:
-            skp_log(f'Error reading input file: {self.filepath}')
-            skp_log(e)
+            if LOGS:
+                skp_log(f'Error reading input file: {self.filepath}')
+                skp_log(e)
             return {'FINISHED'}
 
         if options['import_scene']:
@@ -169,12 +178,14 @@ class SceneImporter():
             options['import_camera'] = True
             for s in self.skp_model.scenes:
                 if s.name == options['import_scene']:
-                    skp_log(f"Importing Scene '{s.name}'")
+                    if not LIMITED_LOGS:
+                        skp_log(f"Importing Scene '{s.name}'")
                     self.scene = s
+                    # s.layers are the invisible layers
                     self.layers_skip = [l for l in s.layers]
                     # for l in s.layers:
                     #     skp_log(f"SKIP: {l.name}")
-            if not self.layers_skip:
+            if not self.layers_skip and not LIMITED_LOGS:
                 skp_log("Scene: '{}' didn't have any invisible layers."
                         .format(options['import_scene']))
 
@@ -183,10 +194,9 @@ class SceneImporter():
         #         l for l in self.skp_model.layers if not l.visible
         #     ]
 
-        if self.layers_skip != []:
+        if self.layers_skip != [] and not LIMITED_LOGS:
             hidden_layers = [l.name for l in self.layers_skip]
-            print('SU | Objects will not be loaded from invisible Layers/Tags!')
-            print('SU | These Layers/Tags are: \r', end='')
+            print('SU | Invisible Layer(s)/Tag(s): \r', end='')
             print(*hidden_layers, sep=', ')
 
         # for l in sorted([l.name for l in self.layers_skip]):
@@ -195,7 +205,13 @@ class SceneImporter():
         self.skp_components = proxy_dict(
             self.skp_model.component_definition_as_dict)
 
-        skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
+        if DEBUG:
+            u_comps = [k for k, v in self.skp_components.items()]
+            print(f'Components: {len(u_comps)} ||| \r', end='')
+            print(*u_comps, sep=', ')
+
+        if not LIMITED_LOGS:
+            skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
 
         create_nested_collection('SKP Scenes (as Cameras)')
 
@@ -214,10 +230,12 @@ class SceneImporter():
 
         _time_material = time.time()
         self.write_materials(self.skp_model.materials)
-        skp_log('Materials imported ' +
-                f'in {(time.time() - _time_material):.4f} sec.')
 
-        _time_component = time.time()
+        if not LIMITED_LOGS:
+            skp_log('Materials imported ' +
+                    f'in {(time.time() - _time_material):.4f} sec.')
+
+        _time_analyze_depth = time.time()
 
         D = SKP_util()
         SKP_util.layers_skip = self.layers_skip
@@ -225,8 +243,16 @@ class SceneImporter():
         for c in self.skp_model.component_definitions:
             self.component_depth[c.name] = D.component_deps(c.entities)
 
-        skp_log('Component depths analyzed ' +
-                f'in {(time.time() - _time_component):.4f} sec.')
+            if DEBUG:
+                print(f'\n-- Comp Depth: {self.component_depth[c.name]}\r',
+                      end='')
+                print(f' ({c.name}) --')
+                print(f'Instances: {c.numInstances}')
+                print(f'Instances Used: {c.numUsedInstances}\n')
+
+        if not LIMITED_LOGS:
+            skp_log('Component depths analyzed ' +
+                    f'in {(time.time() - _time_analyze_depth):.4f} sec.')
 
         self.write_duplicateable_groups()
 
@@ -235,7 +261,7 @@ class SceneImporter():
 
         # self.component_stats = defaultdict(list)
 
-        _time_entity = time.time()
+        _time_mesh_data = time.time()
 
         create_nested_collection('SKP Mesh Objects')
 
@@ -250,13 +276,15 @@ class SceneImporter():
             else:
                 self.instance_group_dupli_face(name, mat, self.component_stats)
 
-        skp_log('Entities imported ' +
-                f'in {(time.time() - _time_entity):.4f} sec.')
+        if not LIMITED_LOGS:
+            skp_log('Entities imported ' +
+                    f'in {(time.time() - _time_mesh_data):.4f} sec.')
 
-        skp_log('Finished importing in %.4f sec.\n' %
-                (time.time() - _time_main))
+        if LOGS:
+            skp_log('Finished entire importing process in %.4f sec.\n' %
+                    (time.time() - _time_main))
 
-        hide_one_level()
+        # hide_one_level()
 
         return {'FINISHED'}
 
@@ -837,7 +865,7 @@ class SceneImporter():
             # skp_log(f"Camera:'{name}' uses dynamic/screen aspect ratio.")
             aspect_ratio = self.aspect_ratio
         if fov == False:
-            skp_log(f"Camera:'{name}' is in Orthographic Mode.")
+            # skp_log(f"Camera:'{name}' is in Orthographic Mode.")
             cam.type = 'ORTHO'
             # cam.ortho_scale = 3.0
         else:
