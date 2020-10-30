@@ -48,12 +48,15 @@ bl_info = {
     "location": "File > Import"
 }
 
-DEBUG = True
-LOGS = False
-LIMITED_LOGS = False
+DEBUG = False
+
+LOGS = True
+
+MIN_LOGS = True
+
 
 if not LOGS:
-    LIMITED_LOGS = True
+    MIN_LOGS = True
 
 
 class SketchupAddonPreferences(AddonPreferences):
@@ -178,14 +181,14 @@ class SceneImporter():
             options['import_camera'] = True
             for s in self.skp_model.scenes:
                 if s.name == options['import_scene']:
-                    if not LIMITED_LOGS:
+                    if not MIN_LOGS:
                         skp_log(f"Importing Scene '{s.name}'")
                     self.scene = s
                     # s.layers are the invisible layers
                     self.layers_skip = [l for l in s.layers]
                     # for l in s.layers:
                     #     skp_log(f"SKIP: {l.name}")
-            if not self.layers_skip and not LIMITED_LOGS:
+            if not self.layers_skip and not MIN_LOGS:
                 skp_log("Scene: '{}' didn't have any invisible layers."
                         .format(options['import_scene']))
 
@@ -194,7 +197,7 @@ class SceneImporter():
         #         l for l in self.skp_model.layers if not l.visible
         #     ]
 
-        if self.layers_skip != [] and not LIMITED_LOGS:
+        if self.layers_skip != [] and not MIN_LOGS:
             hidden_layers = [l.name for l in self.layers_skip]
             print('SU | Invisible Layer(s)/Tag(s): \r', end='')
             print(*hidden_layers, sep=', ')
@@ -210,7 +213,7 @@ class SceneImporter():
             print(f'Components: {len(u_comps)} ||| \r', end='')
             print(*u_comps, sep=', ')
 
-        if not LIMITED_LOGS:
+        if not MIN_LOGS:
             skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
 
         create_nested_collection('SKP Scenes (as Cameras)')
@@ -231,7 +234,7 @@ class SceneImporter():
         _time_material = time.time()
         self.write_materials(self.skp_model.materials)
 
-        if not LIMITED_LOGS:
+        if not MIN_LOGS:
             skp_log('Materials imported ' +
                     f'in {(time.time() - _time_material):.4f} sec.')
 
@@ -250,7 +253,7 @@ class SceneImporter():
                 print(f'Instances: {c.numInstances}')
                 print(f'Instances Used: {c.numUsedInstances}\n')
 
-        if not LIMITED_LOGS:
+        if not MIN_LOGS:
             skp_log('Component depths analyzed ' +
                     f'in {(time.time() - _time_analyze_depth):.4f} sec.')
 
@@ -276,7 +279,7 @@ class SceneImporter():
             else:
                 self.instance_group_dupli_face(name, mat, self.component_stats)
 
-        if not LIMITED_LOGS:
+        if not MIN_LOGS:
             skp_log('Entities imported ' +
                     f'in {(time.time() - _time_mesh_data):.4f} sec.')
 
