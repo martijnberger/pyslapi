@@ -20,6 +20,7 @@ along with this program; if not, see http://www.gnu.org/licenses
 
 import math
 import os
+import shutil
 import tempfile
 import time
 
@@ -425,12 +426,18 @@ class SceneImporter():
 
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
-                    tmp_name = os.path.join(tempfile.gettempdir(), tex_name)
-                    # skp_log(f"Texture saved temporarily at {tmp_name}")
-                    tex.write(tmp_name)
-                    img = bpy.data.images.load(tmp_name)
+                    temp_dir = tempfile.gettempdir()
+                    skp_fname = self.filepath.split("\\")[-1].split(".")[0]
+                    temp_dir += '\\' + skp_fname
+                    if not os.path.isdir(temp_dir):
+                        os.mkdir(temp_dir)
+                    temp_file_path = os.path.join(temp_dir, tex_name)
+                    # skp_log(f"Texture saved temporarily at {temp_file_path}")
+                    tex.write(temp_file_path)
+                    img = bpy.data.images.load(temp_file_path)
                     img.pack()
-                    os.remove(tmp_name)
+                    # os.remove(temp_file_path)
+                    shutil.rmtree(temp_dir)
 
                     # if self.render_engine == 'CYCLES':
                     #     bmat.use_nodes = True
