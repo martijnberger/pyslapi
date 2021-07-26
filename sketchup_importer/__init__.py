@@ -38,7 +38,7 @@ from .SKPutil import *
 bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
-    "version": (0, 23, 'dev_branch'),
+    "version": (0, 23, 0),
     "blender": (2, 93, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
