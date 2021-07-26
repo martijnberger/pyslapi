@@ -4,7 +4,7 @@ from collections import OrderedDict, defaultdict
 from enum import Enum
 
 default_material_name = "Material"
-magic_num = 555555
+su_group_num = 0
 
 
 class proxy_dict(dict):
@@ -58,9 +58,11 @@ def group_name(name, material):
 def group_safe_name(name):
 
     if not name:
-        global magic_num
-        magic_num += 9
-        return "{}__{}".format(name, magic_num)
+        global su_group_num
+        su_group_num += 1
+        padded_num_str = '{:03d}' .format(su_group_num)
+        su_group_num_str = 'No_Name_' + padded_num_str
+        return "{}{}".format(name, su_group_num_str)
 
     return name
 
@@ -94,8 +96,10 @@ class SKP_util:
         for group in entities.groups:
             if self.layers_skip and group.layer in self.layers_skip:
                 continue
-            group_depth = max(group_depth, self.component_deps(
-                group.entities, comp=False))
+            group_depth = max(group_depth,
+                              self.component_deps(group.entities,
+                                                  comp=False)
+                              )
 
         instance_depth = 0
         for instance in entities.instances:
