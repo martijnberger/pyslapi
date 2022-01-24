@@ -18,10 +18,11 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, see http://www.gnu.org/licenses
 '''
 
+import math
 import os
+import shutil
 import tempfile
 import time
-from math import pi
 
 import bpy
 from bpy.props import (BoolProperty, EnumProperty, FloatProperty, IntProperty,
@@ -37,15 +38,26 @@ from .SKPutil import *
 bl_info = {
     "name": "SketchUp Importer",
     "author": "Martijn Berger, Sanjay Mehta, Arindam Mondal",
-    "version": (0, 20, 2),
-    "blender": (2, 82, 0),
+    "version": (0, 23, 0),
+    "blender": (2, 93, 0),
     "description": "Import of native SketchUp (.skp) files",
     # "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
-    "tracker_url": "",
+    "doc_url": "https://github.com/arindam-m/pyslapi/wiki",
+    "tracker_url": "https://github.com/arindam-m/pyslapi/wiki/Bug-Report",
     "category": "Import-Export",
     "location": "File > Import"
 }
+
+DEBUG = False
+
+LOGS = True
+
+MIN_LOGS = True
+
+
+if not LOGS:
+    MIN_LOGS = True
 
 
 class SketchupAddonPreferences(AddonPreferences):
@@ -79,10 +91,46 @@ class SketchupAddonPreferences(AddonPreferences):
 def skp_log(*args):
 
     if len(args) > 0:
-        print('SKP | ' + ' '.join(['%s' % a for a in args]))
+        print('SU | ' + ' '.join(['%s' % a for a in args]))
+
+
+def create_nested_collection(coll_name):
+
+    context = bpy.context
+
+    main_coll_name = 'SKP Imported Data'
+
+    if not bpy.data.collections.get(main_coll_name):
+        skp_main_coll = bpy.data.collections.new(main_coll_name)
+        context.scene.collection.children.link(skp_main_coll)
+
+    if not bpy.data.collections.get(coll_name):
+        skp_nested_coll = bpy.data.collections.new(coll_name)
+        bpy.data.collections[main_coll_name].children.link(skp_nested_coll)
+
+    view_layer_coll = context.view_layer.layer_collection
+    main_parent_coll = view_layer_coll.children[main_coll_name]
+
+    coll_set_to_active = main_parent_coll.children[coll_name]
+    context.view_layer.active_layer_collection = coll_set_to_active
+
+
+def hide_one_level():
+
+    context = bpy.context
+
+    outliners = [a for a in context.screen.areas if a.type == 'OUTLINER']
+    c = context.copy()
+    for ol in outliners:
+        c["area"] = ol
+        bpy.ops.outliner.show_one_level(c, open=False)
+        ol.tag_redraw()
+
+    # context.view_layer.update()
 
 
 class SceneImporter():
+
     def __init__(self):
 
         self.filepath = '/tmp/untitled.skp'
@@ -104,7 +152,7 @@ class SceneImporter():
         self.reuse_material = options['reuse_material']
         self.reuse_group = options['reuse_existing_groups']
         self.max_instance = options['max_instance']
-        self.render_engine = options['render_engine']
+        # self.render_engine = options['render_engine']
         self.component_stats = defaultdict(list)
         self.component_skip = proxy_dict()
         self.component_depth = proxy_dict()
@@ -113,7 +161,8 @@ class SceneImporter():
         ren_res_y = context.scene.render.resolution_y
         self.aspect_ratio = ren_res_x / ren_res_y
 
-        skp_log(f'Importing: {self.filepath}')
+        if LOGS:
+            skp_log(f'Importing: {self.filepath}')
 
         addon_name = __name__.split('.')[0]
         self.prefs = context.preferences.addons[addon_name].preferences
@@ -123,36 +172,52 @@ class SceneImporter():
         try:
             self.skp_model = sketchup.Model.from_file(self.filepath)
         except Exception as e:
-            skp_log(f'Error reading input file: {self.filepath}')
-            skp_log(e)
+            if LOGS:
+                skp_log(f'Error reading input file: {self.filepath}')
+                skp_log(e)
             return {'FINISHED'}
 
         if options['import_scene']:
+            options['scenes_as_camera'] = False
+            options['import_camera'] = True
             for s in self.skp_model.scenes:
                 if s.name == options['import_scene']:
-                    skp_log(f"Importing Scene '{s.name}'")
+                    if not MIN_LOGS:
+                        skp_log(f"Importing Scene '{s.name}'")
                     self.scene = s
+                    # s.layers are the invisible layers
                     self.layers_skip = [l for l in s.layers]
-                    for l in s.layers:
-                        skp_log(f"SKIP: {l.name}")
-            if not self.layers_skip:
-                skp_log('Could not find scene: {}, importing default.'
+                    # for l in s.layers:
+                    #     skp_log(f"SKIP: {l.name}")
+            if not self.layers_skip and not MIN_LOGS:
+                skp_log("Scene: '{}' didn't have any invisible layers."
                         .format(options['import_scene']))
 
-        if not self.layers_skip:
-            self.layers_skip = [
-                l for l in self.skp_model.layers if not l.visible
-            ]
+        # if not self.layers_skip:
+        #     self.layers_skip = [
+        #         l for l in self.skp_model.layers if not l.visible
+        #     ]
 
-        skp_log('Skipping Layers ... ')
+        if self.layers_skip != [] and not MIN_LOGS:
+            hidden_layers = [l.name for l in self.layers_skip]
+            print('SU | Invisible Layer(s)/Tag(s): \r', end='')
+            print(*hidden_layers, sep=', ')
 
-        for l in sorted([l.name for l in self.layers_skip]):
-            skp_log(l)
+        # for l in sorted([l.name for l in self.layers_skip]):
+        #     skp_log(l)
 
         self.skp_components = proxy_dict(
             self.skp_model.component_definition_as_dict)
 
-        skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
+        if DEBUG:
+            u_comps = [k for k, v in self.skp_components.items()]
+            print(f'Components: {len(u_comps)} ||| \r', end='')
+            print(*u_comps, sep=', ')
+
+        if not MIN_LOGS:
+            skp_log(f'Parsed in {(time.time() - _time_main):.4f} sec.')
+
+        create_nested_collection('SKP Scenes (as Cameras)')
 
         if options['scenes_as_camera']:
             for s in self.skp_model.scenes:
@@ -167,27 +232,45 @@ class SceneImporter():
                 active_cam = self.write_camera(self.skp_model.camera)
                 context.scene.camera = active_cam
 
-        _t1 = time.time()
+        _time_material = time.time()
         self.write_materials(self.skp_model.materials)
 
-        skp_log(f'Materials imported in {(time.time() - _t1):.4f} sec.')
+        if not MIN_LOGS:
+            skp_log('Materials imported ' +
+                    f'in {(time.time() - _time_material):.4f} sec.')
 
-        _t1 = time.time()
+        _time_analyze_depth = time.time()
+
         D = SKP_util()
         SKP_util.layers_skip = self.layers_skip
 
         for c in self.skp_model.component_definitions:
             self.component_depth[c.name] = D.component_deps(c.entities)
 
-        skp_log(f'Component depths analyzed in {(time.time() - _t1):.4f} sec.')
+            if DEBUG:
+                print(f'\n-- Comp Depth: {self.component_depth[c.name]}\r',
+                      end='')
+                print(f' ({c.name}) --')
+                print(f'Instances: {c.numInstances}')
+                print(f'Instances Used: {c.numUsedInstances}\n')
+
+        if not MIN_LOGS:
+            skp_log('Component depths analyzed ' +
+                    f'in {(time.time() - _time_analyze_depth):.4f} sec.')
 
         self.write_duplicateable_groups()
 
         if options["dedub_only"]:
             return {'FINISHED'}
 
-        self.component_stats = defaultdict(list)
-        self.write_entities(self.skp_model.entities, "Sketchup",
+        # self.component_stats = defaultdict(list)
+
+        _time_mesh_data = time.time()
+
+        create_nested_collection('SKP Mesh Objects')
+
+        self.write_entities(self.skp_model.entities,
+                            "_(Loose Entity)",
                             Matrix.Identity(4))
 
         for k, _v in self.component_stats.items():
@@ -197,9 +280,15 @@ class SceneImporter():
             else:
                 self.instance_group_dupli_face(name, mat, self.component_stats)
 
-        skp_log(f'Entities imported in {(time.time() - _t1):.4f} sec.')
-        skp_log('Finished importing in %.4f sec.\n' %
-                (time.time() - _time_main))
+        if not MIN_LOGS:
+            skp_log('Entities imported ' +
+                    f'in {(time.time() - _time_mesh_data):.4f} sec.')
+
+        if LOGS:
+            skp_log('Finished entire importing process in %.4f sec.\n' %
+                    (time.time() - _time_main))
+
+        # hide_one_level()
 
         return {'FINISHED'}
 
@@ -220,22 +309,22 @@ class SceneImporter():
             for k, v in component_stats.items():
                 name, mat = k
                 depth = self.component_depth[name]
-                #print(k, len(v), depth)
+                # print(k, len(v), depth)
                 comp_def = self.skp_components[name]
                 if comp_def and depth == 1:
-                    #self.component_skip[(name,mat)] = comp_def.entities
+                    # self.component_skip[(name,mat)] = comp_def.entities
                     pass
                 elif comp_def and depth == i:
                     gname = group_name(name, mat)
-                    if self.reuse_group and gname in bpy.data.groups:
-                        #print("Group {} already defined".format(gname))
+                    if self.reuse_group and gname in bpy.data.collections:
+                        # print("Group {} already defined".format(gname))
                         self.component_skip[(name, mat)] = comp_def.entities
-                        # grp_name = bpy.data.groups[gname]
+                        # grp_name = bpy.data.collections[gname]
                         self.group_written[(name,
-                                            mat)] = bpy.data.groups[gname]
+                                            mat)] = bpy.data.collections[gname]
                     else:
-                        group = bpy.data.groups.new(name=gname)
-                        #print("Component written as group".format(gname))
+                        group = bpy.data.collections.new(name=gname)
+                        # print("Component written as group".format(gname))
                         self.conponent_def_as_group(comp_def.entities,
                                                     name,
                                                     Matrix(),
@@ -252,7 +341,10 @@ class SceneImporter():
                          default_material="Material",
                          etype=EntityType.none,
                          component_stats=None,
-                         component_skip=[]):
+                         component_skip=None):
+
+        if component_skip is None:
+            component_skip = []
 
         if etype == EntityType.component:
             component_stats[(name, default_material)].append(transform)
@@ -288,8 +380,8 @@ class SceneImporter():
 
     def write_materials(self, materials):
 
-        if self.context.scene.render.engine != self.render_engine:
-            self.context.scene.render.engine = self.render_engine
+        if self.context.scene.render.engine != 'CYCLES':
+            self.context.scene.render.engine = 'CYCLES'
 
         self.materials = {}
         self.materials_scales = {}
@@ -298,8 +390,8 @@ class SceneImporter():
         else:
             bmat = bpy.data.materials.new('Material')
             bmat.diffuse_color = (.8, .8, .8, 0)
-            if self.render_engine == 'CYCLES':
-                bmat.use_nodes = True
+            # if self.render_engine == 'CYCLES':
+            bmat.use_nodes = True
             self.materials['Material'] = bmat
 
         for mat in materials:
@@ -315,30 +407,52 @@ class SceneImporter():
                 bmat = bpy.data.materials.new(name)
                 r, g, b, a = mat.color
                 tex = mat.texture
-                bmat.diffuse_color = (r / 255.0, g / 255.0, b / 255.0,
-                                      a / 255.0)
+                bmat.diffuse_color = (math.pow((r / 255.0), 2.2),
+                                      math.pow((g / 255.0), 2.2),
+                                      math.pow((b / 255.0), 2.2),
+                                      round((a / 255.0), 2))  # sRGB to Linear
+
+                if round((a / 255.0), 2) < 1:
+                    bmat.blend_method = 'BLEND'
+
+                bmat.use_nodes = True
+                default_shader = bmat.node_tree.nodes['Principled BSDF']
+
+                default_shader_base_color = default_shader.inputs['Base Color']
+                default_shader_base_color.default_value = bmat.diffuse_color
+
+                default_shader_alpha = default_shader.inputs['Alpha']
+                default_shader_alpha.default_value = round((a / 255.0), 2)
 
                 if tex:
                     tex_name = tex.name.split("\\")[-1]
-                    tmp_name = os.path.join(tempfile.gettempdir(), tex_name)
-                    # skp_log(f"Texture saved temporarily at {tmp_name}")z
-                    tex.write(tmp_name)
-                    img = bpy.data.images.load(tmp_name)
+                    temp_dir = tempfile.gettempdir()
+                    skp_fname = self.filepath.split("\\")[-1].split(".")[0]
+                    temp_dir += '\\' + skp_fname
+                    if not os.path.isdir(temp_dir):
+                        os.mkdir(temp_dir)
+                    temp_file_path = os.path.join(temp_dir, tex_name)
+                    # skp_log(f"Texture saved temporarily at {temp_file_path}")
+                    tex.write(temp_file_path)
+                    img = bpy.data.images.load(temp_file_path)
                     img.pack()
-                    os.remove(tmp_name)
+                    # os.remove(temp_file_path)
+                    shutil.rmtree(temp_dir)
 
-                    if self.render_engine == 'CYCLES':
-                        bmat.use_nodes = True
-                        n = bmat.node_tree.nodes.new('ShaderNodeTexImage')
-                        n.image = img
-                        bmat.node_tree.links.new(
-                            n.outputs['Color'], bmat.node_tree.
-                            nodes['Principled BSDF'].inputs['Base Color'])
-                    else:
-                        btex = bpy.data.textures.new(tex_name, 'IMAGE')
-                        btex.image = img
-                        slot = bmat.texture_slots.add()
-                        slot.texture = btex
+                    # if self.render_engine == 'CYCLES':
+                    #     bmat.use_nodes = True
+                    tex_node = bmat.node_tree.nodes.new('ShaderNodeTexImage')
+                    tex_node.image = img
+                    tex_node.location = Vector((-750, 225))
+                    bmat.node_tree.links.new(
+                        tex_node.outputs['Color'], default_shader_base_color)
+                    bmat.node_tree.links.new(
+                        tex_node.outputs['Alpha'], default_shader_alpha)
+                    # else:
+                    #     btex = bpy.data.textures.new(tex_name, 'IMAGE')
+                    #     btex.image = img
+                    #     slot = bmat.texture_slots.add()
+                    #     slot.texture = btex
 
                 self.materials[name] = bmat
             else:
@@ -433,13 +547,13 @@ class SceneImporter():
                 # if bmat.alpha < 1.0:
                 #     alpha = True
                 try:
-                    if self.render_engine == 'CYCLES':
-                        if 'Image Texture' in bmat.node_tree.nodes.keys():
-                            uvs_used = True
-                    else:
-                        for ts in bmat.texture_slots:
-                            if ts is not None and ts.texture_coords is not None:
-                                uvs_used = True
+                    # if self.render_engine == 'CYCLES':
+                    if 'Image Texture' in bmat.node_tree.nodes.keys():
+                        uvs_used = True
+                    # else:
+                    #     for ts in bmat.texture_slots:
+                    #         if ts is not None and ts.texture_coords is not None:
+                    #             uvs_used = True
                 except AttributeError as _e:
                     uvs_used = False
         else:
@@ -575,7 +689,7 @@ class SceneImporter():
                 name, default_material) in self.component_skip:
             ob = self.instance_object_or_group(name, default_material)
             ob.matrix_world = parent_tranform
-            self.context.scene.objects.link(ob)
+            self.context.collection.objects.link(ob)
             ob.layers = 18 * [False] + [True] + [False]
             group.objects.link(ob)
 
@@ -592,7 +706,7 @@ class SceneImporter():
             if alpha:
                 ob.show_transparent = True
             me.update(calc_edges=True)
-            self.context.scene.objects.link(ob)
+            self.context.collection.objects.link(ob)
             ob.layers = 18 * [False] + [True] + [False]
             group.objects.link(ob)
 
@@ -661,8 +775,8 @@ class SceneImporter():
                 (rot[0], rot[1], rot[2], rot[3]))
             ob.parent = dob
 
-            self.context.scene.objects.link(ob)
-            self.context.scene.objects.link(dob)
+            self.context.collection.objects.link(ob)
+            self.context.collection.objects.link(dob)
             skp_log(
                 "Complex group {} {} instanced {} times, scale -> {}".format(
                     name, default_material, len(verts), scale))
@@ -722,25 +836,25 @@ class SceneImporter():
             dob = bpy.data.objects.new("DUPLI_" + name, dme)
             dob.dupli_type = 'FACES'
             dob.location = main_loc
-            #dob.use_dupli_faces_scale = True
-            #dob.dupli_faces_scale = 10
+            # dob.use_dupli_faces_scale = True
+            # dob.dupli_faces_scale = 10
 
             ob = self.instance_object_or_group(name, default_material)
             ob.scale = real_scale
             ob.parent = dob
-            self.context.scene.objects.link(ob)
-            self.context.scene.objects.link(dob)
+            self.context.collection.objects.link(ob)
+            self.context.collection.objects.link(dob)
             skp_log("Complex group {} {} instanced {} times".format(
                 name, default_material, f_count / 4))
 
         return
 
-    def write_camera(self, camera, name="Active Camera"):
+    def write_camera(self, camera, name="Last View"):
 
         pos, target, up = camera.GetOrientation()
         bpy.ops.object.add(type='CAMERA', location=pos)
         ob = self.context.object
-        ob.name = name
+        ob.name = "Cam : " + name
 
         z = (Vector(pos) - Vector(target))
         x = Vector(up).cross(z)
@@ -761,12 +875,13 @@ class SceneImporter():
             # skp_log(f"Camera:'{name}' uses dynamic/screen aspect ratio.")
             aspect_ratio = self.aspect_ratio
         if fov == False:
-            skp_log(f"Camera:'{name}'' is in Orthographic Mode.")
+            # skp_log(f"Camera:'{name}' is in Orthographic Mode.")
             cam.type = 'ORTHO'
+            # cam.ortho_scale = 3.0
         else:
-            cam.angle = (pi * fov / 180) * aspect_ratio
+            cam.angle = (math.pi * fov / 180) * aspect_ratio
         cam.clip_end = self.prefs.camera_far_plane
-        cam.name = name
+        cam.name = "Cam : " + name
 
 
 class SceneExporter():
@@ -790,11 +905,11 @@ class SceneExporter():
 
 
 class ImportSKP(Operator, ImportHelper):
-    """Load a Trimble Sketchup SKP file"""
+    """Load a Trimble SketchUp SKP file"""
 
     bl_idname = "import_scene.skp"
     bl_label = "Import SKP"
-    bl_options = {'PRESET', 'UNDO'}
+    bl_options = {'PRESET', 'REGISTER', 'UNDO'}
 
     filename_ext = ".skp"
 
@@ -803,8 +918,14 @@ class ImportSKP(Operator, ImportHelper):
         options={'HIDDEN'},
     )
 
+    scenes_as_camera: BoolProperty(
+        name="Scene(s) As Camera(s)",
+        description="Import SketchUp Scenes As Blender Camera.",
+        default=True
+    )
+
     import_camera: BoolProperty(
-        name="Last View In SketchUP As Camera View",
+        name="Last View In SketchUp As Camera View",
         description="Import last saved view in SketchUp as a Blender Camera.",
         default=False
     )
@@ -815,8 +936,20 @@ class ImportSKP(Operator, ImportHelper):
         default=True
     )
 
+    dedub_only: BoolProperty(
+        name="Groups Only",
+        description="Import instanciated groups only.",
+        default=False
+    )
+
+    reuse_existing_groups: BoolProperty(
+        name="Reuse Groups",
+        description="Use existing Blender groups to instance componenets with.",
+        default=False
+    )
+
     max_instance: IntProperty(
-        name="Threshold :",
+        name="Instantiation Threshold :",
         default=50
     )
 
@@ -827,37 +960,19 @@ class ImportSKP(Operator, ImportHelper):
         default='FACE',
     )
 
-    dedub_only: BoolProperty(
-        name="Groups Only",
-        description="Import instanciated groups only.",
-        default=False
-    )
-
-    scenes_as_camera: BoolProperty(
-        name="Scene(s) As Camera(s)",
-        description="Import SketchUp Scenes As Blender Camera.",
-        default=True
-    )
-
     import_scene: StringProperty(
         name="Import A Scene :",
-        description="Import a specific Sketchup Scene",
+        description="Import a specific SketchUp Scene",
         default=""
     )
 
-    reuse_existing_groups: BoolProperty(
-        name="Reuse Groups",
-        description="Use existing Blender groups to instance componenets with.",
-        default=False
-    )
-
-    render_engine: EnumProperty(
-        name="Default Shaders In :",
-        items=(('CYCLES', "Cycles", ""),
-               #    ('BLENDER_RENDER', "Blender Render", "")
-               ),
-        default='CYCLES'
-    )
+    # render_engine: EnumProperty(
+    #     name="Default Shaders In :",
+    #     items=(('CYCLES', "Cycles", ""),
+    #            #    ('BLENDER_RENDER', "Blender Render", "")
+    #            ),
+    #     default='CYCLES'
+    # )
 
     def execute(self, context):
 
@@ -882,11 +997,10 @@ class ImportSKP(Operator, ImportHelper):
         row.prop(self, "dedub_only")
         row = layout.row()
         row.prop(self, "reuse_existing_groups")
-        # row = layout.row()
         col = layout.column()
-        col.label(text="- Instanciate When Similar Objects Are Over -")
-        split = col.split(factor=0.5)
-        col = split.column()
+        col.label(text="- Instantiate components, if they are more than -")
+        # split = col.split(factor=0.5)
+        # col = split.column()
         col.prop(self, "max_instance")
         row = layout.row()
         row.use_property_split = True
@@ -894,13 +1008,13 @@ class ImportSKP(Operator, ImportHelper):
         row = layout.row()
         row.use_property_split = True
         row.prop(self, "import_scene")
-        row = layout.row()
-        row.use_property_split = True
-        row.prop(self, "render_engine")
+        # row = layout.row()
+        # row.use_property_split = True
+        # row.prop(self, "render_engine")
 
 
 class ExportSKP(Operator, ExportHelper):
-    """Load a Trimble Sketchup SKP file"""
+    """Export .blend into .skp file"""
 
     bl_idname = "export_scene.skp"
     bl_label = "Export SKP"
@@ -919,13 +1033,13 @@ class ExportSKP(Operator, ExportHelper):
 def menu_func_import(self, context):
 
     self.layout.operator(ImportSKP.bl_idname,
-                         text="Import Sketchup Scene(.skp)")
+                         text="Import SketchUp Scene(.skp)")
 
 
 def menu_func_export(self, context):
 
     self.layout.operator(ExportSKP.bl_idname,
-                         text="Export Sketchup Scene(.skp)")
+                         text="Export SketchUp Scene(.skp)")
 
 
 def register():
