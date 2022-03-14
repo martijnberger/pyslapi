@@ -27,5 +27,7 @@ INSTALL
   SketchUpAPI.framework
   sketchup.cpython-37m-darwin
 
+2) Rename sketchup.cpython-37m-darwin.so to sketchup.so
+
 2) Look the addon in Blender and enable it
 
