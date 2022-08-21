@@ -290,6 +290,9 @@ class SceneImporter():
 
         # hide_one_level()
 
+        # release model and terminate api
+        self.skp_model.close()
+
         return {'FINISHED'}
 
     def write_duplicateable_groups(self):
@@ -425,10 +428,10 @@ class SceneImporter():
                 default_shader_alpha.default_value = round((a / 255.0), 2)
 
                 if tex:
-                    tex_name = tex.name.split("\\")[-1]
+                    tex_name = tex.name.split(os.path.sep)[-1]
                     temp_dir = tempfile.gettempdir()
-                    skp_fname = self.filepath.split("\\")[-1].split(".")[0]
-                    temp_dir += '\\' + skp_fname
+                    skp_fname = self.filepath.split(os.path.sep)[-1].split(".")[0]
+                    temp_dir += os.path.sep + skp_fname
                     if not os.path.isdir(temp_dir):
                         os.mkdir(temp_dir)
                     temp_file_path = os.path.join(temp_dir, tex_name)
