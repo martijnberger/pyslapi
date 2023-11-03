@@ -25,3 +25,26 @@ packages = ["sketchup_importer", "slapi"]
 
 # Note: We still need setup.py for proper Cython extension configuration
 # See setup.py for the extension module definitions 
+
+[tool.ruff]
+# Allow lines to be as long as 120.
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "C4",  # Flake comprehensions Complexity is too high
+    "DTZ", # timezone-aware datetimes, banning naive datetime usage
+    "E",   # Fix pydocstyle errors
+    "F",   # PyFlakes
+    "I",   # isort
+    "RUF", # Ruff lints
+    "UP",  # pyupgrade
+    "W",   # Fix tabs, trailing spaces, bad newlines, long doc lines, and bad escape sequences.
+    ]
+ignore = [
+    "E203",   # Whitespace-before-punctuation
+    "RUF012", # mutable-class-default
+    ]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 120
