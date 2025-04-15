@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "Cython>=0.29.24"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Sketchup"
+version = "0.24.0"
+authors = [
+    {name = "Martijn Berger"}
+]
+description = "Python bindings for the official Sketchup API"
+readme = "README.md"
+requires-python = ">=3.11.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/martijnberger/pyslapi"
+"Bug Tracker" = "https://github.com/martijnberger/pyslapi/issues"
+
+[tool.setuptools]
+packages = ["sketchup_importer", "slapi"]
+
+# Note: We still need setup.py for proper Cython extension configuration
+# See setup.py for the extension module definitions 
