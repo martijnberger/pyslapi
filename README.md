@@ -38,6 +38,14 @@ The latest version of the importer is compatible with:
 
 For older versions of Blender, check the specific release notes on the [releases page](https://github.com/martijnberger/pyslapi/releases).
 
+## Features Not Yet Implemented
+
+### Platform Support
+- **Linux Support**: Not available due to limitations in the SketchUp SDK which doesn't provide Linux libraries.
+
+### Import Options
+- **Line-Only Import**: Future feature to import only line geometry without faces.
+
 
 
 ## Build Info

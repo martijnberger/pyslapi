@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from libcpp cimport bool
+from libc.stdint cimport int64_t, uint32_t
+
 ctypedef int SU_RESULT
 
 ctypedef unsigned char SUByte
@@ -18,6 +21,8 @@ cdef extern from "SketchUpAPI/model/defs.h":
         void *ptr
     ctypedef struct SUClassificationInfoRef:
         void *ptr
+    ctypedef struct SUComponentBehavior:
+        pass
     ctypedef struct SUComponentDefinitionRef:
         void *ptr
     ctypedef struct SUComponentInstanceRef:
@@ -46,6 +51,8 @@ cdef extern from "SketchUpAPI/model/defs.h":
         void *ptr
     ctypedef struct SUEntityRef:
         void *ptr
+    ctypedef struct SUEnvironmentsRef:
+        void *ptr
     ctypedef struct SUFaceRef:
         void *ptr
     ctypedef struct SUFontRef:
@@ -65,6 +72,12 @@ cdef extern from "SketchUpAPI/model/defs.h":
     ctypedef struct SUInstancePathRef:
         void *ptr
     ctypedef struct SULayerRef:
+        void *ptr
+    ctypedef struct SULayerFolderRef:
+        void *ptr
+    ctypedef struct SULengthFormatterRef:
+        void *ptr
+    ctypedef struct SULineStylesRef:
         void *ptr
     ctypedef struct SULocationRef:
         void *ptr
@@ -94,6 +107,8 @@ cdef extern from "SketchUpAPI/model/defs.h":
         void *ptr
     ctypedef struct SUSectionPlaneRef:
         void *ptr
+    ctypedef struct SUSelectionRef:
+        void *ptr
     ctypedef struct SUShadowInfoRef:
         void *ptr
     ctypedef struct SUStyleRef:
@@ -121,6 +136,7 @@ cdef extern from "SketchUpAPI/model/defs.h":
           SURefType_Edge,
           SURefType_EdgeUse,
           SURefType_Entities,
+          SURefType_Environments,
           SURefType_Face,
           SURefType_Group,
           SURefType_Image,

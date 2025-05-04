@@ -18,3 +18,5 @@ LayOutAPI.framework
 *.url
 documentation/
 samples/
+
+target/
