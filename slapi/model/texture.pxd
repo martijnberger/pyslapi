@@ -27,4 +27,3 @@ cdef extern from "SketchUpAPI/model/texture.h":
     SU_RESULT SUTextureCreateFromImageData(SUTextureRef* texture, size_t width, size_t height, size_t bits_per_pixel, SUByte pixel_data[])
     SU_RESULT SUTextureGetImageDataSize(SUTextureRef texture,  size_t* data_size, size_t* bits_per_pixel)
     SU_RESULT SUTextureGetImageData(SUTextureRef texture, size_t data_size, SUByte pixel_data[])
-
