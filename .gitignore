@@ -19,4 +19,6 @@ LayOutAPI.framework
 documentation/
 samples/
 
+*.egg-info
+
 target/

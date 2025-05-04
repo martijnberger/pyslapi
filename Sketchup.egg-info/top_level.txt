@@ -1,3 +1,0 @@
-sketchup
-sketchup_importer
-slapi
