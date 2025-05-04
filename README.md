@@ -38,6 +38,20 @@ The latest version of the importer is compatible with:
 
 For older versions of Blender, check the specific release notes on the [releases page](https://github.com/martijnberger/pyslapi/releases).
 
+## Version 0.25 Improvements
+
+This version incorporates significant improvements by [Peter Kirkham](https://pkirkham.github.io/blog/importing-from-sketchup-into-blender/) that address several critical issues with the SketchUp importer:
+
+- **Preserved Hierarchy Structure**: Maintains the original SketchUp model hierarchy in Blender's outliner
+- **Improved Nested Components**: Fixed issues with nesting of groups and components
+- **Name Recognition Fix**: Solved problems with objects sharing the same name not being recognized as separate entities
+- **Transformation Corrections**: Fixed transformations not being correctly applied to groups containing both nested loose mesh data and groups
+
+As noted by Peter Kirkham in his August 2022 update:
+> "I've continued to work on the import script and have solved the issues with nesting of groups and components. The issue turned out to be related to a mix of objects with the same name not being recognised as separate entities, and with transformations not being correctly applied to groups containing both nested loose mesh data and groups. These problems have been fixed and the importer is now a lot more robust."
+
+**Note about complex transformations**: There may still be occasional import issues with groups that have multiple transformations applied. If you encounter problems, try exploding and re-grouping the geometry in SketchUp to reset the transformations before importing.
+
 ## Features Not Yet Implemented
 
 ### Platform Support
