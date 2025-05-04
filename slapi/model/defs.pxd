@@ -49,7 +49,13 @@ cdef extern from "SketchUpAPI/model/defs.h":
         void *ptr
     ctypedef struct SUEntitiesRef:
         void *ptr
+    ctypedef struct SUEntityListRef:
+        void *ptr
+    ctypedef struct SUEntityListIteratorRef:
+        void *ptr
     ctypedef struct SUEntityRef:
+        void *ptr
+    ctypedef struct SUEnvironmentRef:
         void *ptr
     ctypedef struct SUEnvironmentsRef:
         void *ptr
@@ -77,9 +83,13 @@ cdef extern from "SketchUpAPI/model/defs.h":
         void *ptr
     ctypedef struct SULengthFormatterRef:
         void *ptr
+    ctypedef struct SULineStyleRef:
+        void *ptr
     ctypedef struct SULineStylesRef:
         void *ptr
     ctypedef struct SULocationRef:
+        void *ptr
+    ctypedef struct SULoopInputRef:
         void *ptr
     ctypedef struct SULoopRef:
         void *ptr
@@ -94,6 +104,8 @@ cdef extern from "SketchUpAPI/model/defs.h":
     ctypedef struct SUOptionsManagerRef:
         void *ptr
     ctypedef struct SUOptionsProviderRef:
+        void *ptr
+    ctypedef struct SUOverlayRef:
         void *ptr
     ctypedef struct SUPolyline3dRef:
         void *ptr
@@ -111,9 +123,13 @@ cdef extern from "SketchUpAPI/model/defs.h":
         void *ptr
     ctypedef struct SUShadowInfoRef:
         void *ptr
+    ctypedef struct SUSnapRef:
+        void *ptr
     ctypedef struct SUStyleRef:
         void *ptr
     ctypedef struct SUStylesRef:
+        void *ptr
+    ctypedef struct SUTextRef:
         void *ptr
     ctypedef struct SUTextureRef:
         void *ptr
@@ -135,8 +151,9 @@ cdef extern from "SketchUpAPI/model/defs.h":
           SURefType_Curve,
           SURefType_Edge,
           SURefType_EdgeUse,
-          SURefType_Entities,
+          SURefType_Environment,
           SURefType_Environments,
+          SURefType_Entities,
           SURefType_Face,
           SURefType_Group,
           SURefType_Image,
@@ -172,4 +189,15 @@ cdef extern from "SketchUpAPI/model/defs.h":
           SURefType_Dimension,
           SURefType_DimensionLinear,
           SURefType_DimensionRadial,
-          SURefType_DimensionStyle
+          SURefType_DimensionStyle,
+          SURefType_Text,
+          SURefType_EntityList,
+          SURefType_EntityListIterator,
+          SURefType_DrawingElement,
+          SURefType_Entity,
+          SURefType_LengthFormatter,
+          SURefType_LineStyle,
+          SURefType_LineStyleManager,
+          SURefType_Selection,
+          SURefType_LayerFolder,
+          SURefType_Snap
