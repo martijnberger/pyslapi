@@ -1,4 +1,28 @@
-# <pep8-80 compliant>
+
+
+import math
+import os
+import shutil
+import tempfile
+import time
+from collections import defaultdict
+
+import bpy
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    IntProperty,
+    StringProperty,
+)
+from bpy.types import AddonPreferences, Operator
+from bpy_extras.io_utils import (
+    ExportHelper,
+    ImportHelper,
+    unpack_face_list,
+    unpack_list,
+)
+from mathutils import Matrix, Quaternion, Vector
 
 __author__ = "Martijn Berger"
 __license__ = "GPL"
@@ -18,29 +42,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, see http://www.gnu.org/licenses
 """
 
-import math
-import os
-import shutil
-import tempfile
-import time
-
-import bpy
-from bpy.props import (
-    BoolProperty,
-    EnumProperty,
-    FloatProperty,
-    IntProperty,
-    StringProperty,
-)
-from bpy.types import AddonPreferences, Operator
-from bpy_extras.io_utils import (
-    ExportHelper,
-    ImportHelper,
-    unpack_face_list,
-    unpack_list,
-)
-from mathutils import Matrix, Quaternion, Vector
-
 from . import sketchup
 from .SKPutil import *
 
@@ -50,7 +51,6 @@ bl_info = {
     "version": (0, 24, 0),
     "blender": (4, 4, 0),
     "description": "Import of native SketchUp (.skp) files",
-    # "warning": "Very early preview",
     "wiki_url": "https://github.com/martijnberger/pyslapi",
     "doc_url": "https://github.com/arindam-m/pyslapi/wiki",
     "tracker_url": "https://github.com/arindam-m/pyslapi/wiki/Bug-Report",
@@ -330,7 +330,7 @@ class SceneImporter:
                     else:
                         group = bpy.data.collections.new(name=gname)
                         # print("Component written as group".format(gname))
-                        self.conponent_def_as_group(
+                        self.component_def_as_group(
                             comp_def.entities,
                             name,
                             Matrix(),
@@ -619,14 +619,20 @@ class SceneImporter:
 
         return me, alpha
 
+    #
+    # Recursively import all the mesh objects. Groups containing no mesh
+    # information are imported as empty objects and can contain nested
+    # groups or components. This approach preserves the hierarchy from the
+    # SketchUp outliner.
+    #
     def write_entities(
-        self, entities, name, parent_tranform, default_material="Material", etype=None
+        self, entities, name, parent_transform, default_material="Material", etype=None
     ):
         if (
             etype == EntityType.component
             and (name, default_material) in self.component_skip
         ):
-            self.component_stats[(name, default_material)].append(parent_tranform)
+            self.component_stats[(name, default_material)].append(parent_transform)
             return
 
         me, alpha = self.write_mesh_data(
@@ -635,7 +641,7 @@ class SceneImporter:
 
         if me:
             ob = bpy.data.objects.new(name, me)
-            ob.matrix_world = parent_tranform
+            ob.matrix_world = parent_transform
             if alpha > 0.01 and alpha < 1.0:
                 ob.show_transparent = True
             me.update(calc_edges=True)
@@ -649,7 +655,7 @@ class SceneImporter:
             self.write_entities(
                 group.entities,
                 "G-" + group_safe_name(group.name),
-                parent_tranform @ Matrix(group.transform),
+                parent_transform @ Matrix(group.transform),
                 default_material=inherent_default_mat(group.material, default_material),
                 etype=EntityType.group,
             )
@@ -664,7 +670,7 @@ class SceneImporter:
             self.write_entities(
                 cdef.entities,
                 cdef.name,
-                parent_tranform @ Matrix(instance.transform),
+                parent_transform @ Matrix(instance.transform),
                 default_material=mat_name,
                 etype=EntityType.component,
             )
@@ -685,11 +691,11 @@ class SceneImporter:
             me.update(calc_edges=True)
             return ob
 
-    def conponent_def_as_group(
+    def component_def_as_group(
         self,
         entities,
         name,
-        parent_tranform,
+        parent_transform,
         default_material="Material",
         etype=None,
         group=None,
@@ -708,9 +714,12 @@ class SceneImporter:
             and (name, default_material) in self.component_skip
         ):
             ob = self.instance_object_or_group(name, default_material)
-            ob.matrix_world = parent_tranform
+            ob.matrix_world = parent_transform
             self.context.collection.objects.link(ob)
-            ob.layers = 18 * [False] + [True] + [False]
+            try:
+                ob.layers = 18 * [False] + [True] + [False]
+            except AttributeError as _e:
+                pass # capture  
             group.objects.link(ob)
 
             return
@@ -722,7 +731,7 @@ class SceneImporter:
 
         if me:
             ob = bpy.data.objects.new(name, me)
-            ob.matrix_world = parent_tranform
+            ob.matrix_world = parent_transform
             if alpha:
                 ob.show_transparent = True
             me.update(calc_edges=True)
@@ -733,10 +742,10 @@ class SceneImporter:
         for g in entities.groups:
             if self.layers_skip and g.layer in self.layers_skip:
                 continue
-            self.conponent_def_as_group(
+            self.component_def_as_group(
                 g.entities,
                 "G-" + g.name,
-                parent_tranform @ Matrix(g.transform),
+                parent_transform @ Matrix(g.transform),
                 default_material=inherent_default_mat(g.material, default_material),
                 etype=EntityType.group,
                 group=group,
@@ -746,10 +755,10 @@ class SceneImporter:
             if self.layers_skip and instance.layer in self.layers_skip:
                 continue
             cdef = self.skp_components[instance.definition.name]
-            self.conponent_def_as_group(
+            self.component_def_as_group(
                 cdef.entities,
                 cdef.name,
-                parent_tranform @ Matrix(instance.transform),
+                parent_transform @ Matrix(instance.transform),
                 default_material=inherent_default_mat(
                     instance.material, default_material
                 ),
@@ -757,6 +766,12 @@ class SceneImporter:
                 group=group,
             )
 
+    #
+    # Creates a single group in a collection that contains duplicated
+    # instances of a component. Scaling and rotations are used to identify
+    # similar components. Each duplicate group contains components with the
+    # same scale and rotation applied.
+    #
     def instance_group_dupli_vert(self, name, default_material, component_stats):
         def get_orientations(v):
             orientations = defaultdict(list)
@@ -771,6 +786,9 @@ class SceneImporter:
                 scale, rot = key
                 yield scale, rot, locs
 
+        # Create a new group with duplicated components as a linked object.
+        # Each duplicated group has a specific location, scale and rotation
+        # applied.
         for scale, rot, locs in get_orientations(
             component_stats[(name, default_material)]
         ):
@@ -950,13 +968,13 @@ class ImportSKP(Operator, ImportHelper):
 
     dedub_only: BoolProperty(
         name="Groups Only",
-        description="Import instanciated groups only.",
+        description="Import instantiated groups only.",
         default=False,
     )
 
     reuse_existing_groups: BoolProperty(
         name="Reuse Groups",
-        description="Use existing Blender groups to instance componenets with.",
+        description="Use existing Blender groups to instance components with.",
         default=False,
     )
 
@@ -966,7 +984,7 @@ class ImportSKP(Operator, ImportHelper):
         name="Instancing Type :",
         items=(
             ("FACE", "Faces", ""),
-            ("VERTEX", "Verts", ""),
+            ("VERTEX", "Vertices", ""),
         ),
         default="FACE",
     )
