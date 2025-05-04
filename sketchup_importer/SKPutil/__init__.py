@@ -61,9 +61,7 @@ def group_safe_name(name):
 
 def inherent_default_mat(mat, default_material):
     mat_name = mat.name if mat else default_material
-    if mat_name == (
-        default_material_name and default_material != default_material_name
-    ):
+    if mat_name == (default_material_name and default_material != default_material_name):
         mat_name = default_material
 
     return mat_name
@@ -85,16 +83,12 @@ class SKP_util:
         for group in entities.groups:
             if self.layers_skip and group.layer in self.layers_skip:
                 continue
-            group_depth = max(
-                group_depth, self.component_deps(group.entities, comp=False)
-            )
+            group_depth = max(group_depth, self.component_deps(group.entities, comp=False))
 
         instance_depth = 0
         for instance in entities.instances:
             if self.layers_skip and instance.layer in self.layers_skip:
                 continue
-            instance_depth = max(
-                instance_depth, 1 + self.component_deps(instance.definition.entities)
-            )
+            instance_depth = max(instance_depth, 1 + self.component_deps(instance.definition.entities))
 
         return max(own_depth, group_depth, instance_depth)

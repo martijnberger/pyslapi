@@ -1,5 +1,3 @@
-
-
 import math
 import os
 import shutil
@@ -72,13 +70,9 @@ if not LOGS:
 class SketchupAddonPreferences(AddonPreferences):
     bl_idname = __name__
 
-    camera_far_plane: FloatProperty(
-        name="Camera Clip Ends At :", default=250, unit="LENGTH"
-    )
+    camera_far_plane: FloatProperty(name="Camera Clip Ends At :", default=250, unit="LENGTH")
 
-    draw_bounds: IntProperty(
-        name="Draw Similar Objects As Bounds When It's Over :", default=1000
-    )
+    draw_bounds: IntProperty(name="Draw Similar Objects As Bounds When It's Over :", default=1000)
 
     def draw(self, context):
         layout = self.layout
@@ -188,11 +182,7 @@ class SceneImporter:
                     # for l in s.layers:
                     #     skp_log(f"SKIP: {l.name}")
             if not self.layers_skip and not MIN_LOGS:
-                skp_log(
-                    "Scene: '{}' didn't have any invisible layers.".format(
-                        options["import_scene"]
-                    )
-                )
+                skp_log("Scene: '{}' didn't have any invisible layers.".format(options["import_scene"]))
 
         # if not self.layers_skip:
         #     self.layers_skip = [
@@ -235,9 +225,7 @@ class SceneImporter:
         self.write_materials(self.skp_model.materials)
 
         if not MIN_LOGS:
-            skp_log(
-                "Materials imported " + f"in {(time.time() - _time_material):.4f} sec."
-            )
+            skp_log("Materials imported " + f"in {(time.time() - _time_material):.4f} sec.")
 
         _time_analyze_depth = time.time()
 
@@ -254,10 +242,7 @@ class SceneImporter:
                 print(f"Instances Used: {c.numUsedInstances}\n")
 
         if not MIN_LOGS:
-            skp_log(
-                "Component depths analyzed "
-                + f"in {(time.time() - _time_analyze_depth):.4f} sec."
-            )
+            skp_log("Component depths analyzed " + f"in {(time.time() - _time_analyze_depth):.4f} sec.")
 
         self.write_duplicateable_groups()
 
@@ -270,9 +255,7 @@ class SceneImporter:
 
         create_nested_collection("SKP Mesh Objects")
 
-        self.write_entities(
-            self.skp_model.entities, "_(Loose Entity)", Matrix.Identity(4)
-        )
+        self.write_entities(self.skp_model.entities, "_(Loose Entity)", Matrix.Identity(4))
 
         for k, _v in self.component_stats.items():
             name, mat = k
@@ -282,15 +265,10 @@ class SceneImporter:
                 self.instance_group_dupli_face(name, mat, self.component_stats)
 
         if not MIN_LOGS:
-            skp_log(
-                "Entities imported " + f"in {(time.time() - _time_mesh_data):.4f} sec."
-            )
+            skp_log("Entities imported " + f"in {(time.time() - _time_mesh_data):.4f} sec.")
 
         if LOGS:
-            skp_log(
-                "Finished entire importing process in %.4f sec.\n"
-                % (time.time() - _time_main)
-            )
+            skp_log("Finished entire importing process in %.4f sec.\n" % (time.time() - _time_main))
 
         # hide_one_level()
 
@@ -308,9 +286,7 @@ class SceneImporter:
         )
         instance_when_over = self.max_instance
         max_depth = max(self.component_depth.values(), default=0)
-        component_stats = {
-            k: v for k, v in component_stats.items() if len(v) >= instance_when_over
-        }
+        component_stats = {k: v for k, v in component_stats.items() if len(v) >= instance_when_over}
         for i in range(max_depth + 1):
             for k, v in component_stats.items():
                 name, mat = k
@@ -455,12 +431,8 @@ class SceneImporter:
                     tex_node = bmat.node_tree.nodes.new("ShaderNodeTexImage")
                     tex_node.image = img
                     tex_node.location = Vector((-750, 225))
-                    bmat.node_tree.links.new(
-                        tex_node.outputs["Color"], default_shader_base_color
-                    )
-                    bmat.node_tree.links.new(
-                        tex_node.outputs["Alpha"], default_shader_alpha
-                    )
+                    bmat.node_tree.links.new(tex_node.outputs["Color"], default_shader_base_color)
+                    bmat.node_tree.links.new(tex_node.outputs["Alpha"], default_shader_alpha)
                     # else:
                     #     btex = bpy.data.textures.new(tex_name, 'IMAGE')
                     #     btex.image = img
@@ -625,19 +597,12 @@ class SceneImporter:
     # groups or components. This approach preserves the hierarchy from the
     # SketchUp outliner.
     #
-    def write_entities(
-        self, entities, name, parent_transform, default_material="Material", etype=None
-    ):
-        if (
-            etype == EntityType.component
-            and (name, default_material) in self.component_skip
-        ):
+    def write_entities(self, entities, name, parent_transform, default_material="Material", etype=None):
+        if etype == EntityType.component and (name, default_material) in self.component_skip:
             self.component_stats[(name, default_material)].append(parent_transform)
             return
 
-        me, alpha = self.write_mesh_data(
-            entities=entities, name=name, default_material=default_material
-        )
+        me, alpha = self.write_mesh_data(entities=entities, name=name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
@@ -704,30 +669,23 @@ class SceneImporter:
             if (name, default_material) in self.component_skip:
                 return
             else:
-                skp_log(
-                    f"Write instance definition as group {group.name} {default_material}"
-                )
+                skp_log(f"Write instance definition as group {group.name} {default_material}")
                 self.component_skip[(name, default_material)] = True
 
-        if (
-            etype == EntityType.component
-            and (name, default_material) in self.component_skip
-        ):
+        if etype == EntityType.component and (name, default_material) in self.component_skip:
             ob = self.instance_object_or_group(name, default_material)
             ob.matrix_world = parent_transform
             self.context.collection.objects.link(ob)
             try:
                 ob.layers = 18 * [False] + [True] + [False]
             except AttributeError as _e:
-                pass # capture  
+                pass  # capture
             group.objects.link(ob)
 
             return
 
         else:
-            me, alpha = self.write_mesh_data(
-                entities=entities, name=name, default_material=default_material
-            )
+            me, alpha = self.write_mesh_data(entities=entities, name=name, default_material=default_material)
 
         if me:
             ob = bpy.data.objects.new(name, me)
@@ -759,9 +717,7 @@ class SceneImporter:
                 cdef.entities,
                 cdef.name,
                 parent_transform @ Matrix(instance.transform),
-                default_material=inherent_default_mat(
-                    instance.material, default_material
-                ),
+                default_material=inherent_default_mat(instance.material, default_material),
                 etype=EntityType.component,
                 group=group,
             )
@@ -789,9 +745,7 @@ class SceneImporter:
         # Create a new group with duplicated components as a linked object.
         # Each duplicated group has a specific location, scale and rotation
         # applied.
-        for scale, rot, locs in get_orientations(
-            component_stats[(name, default_material)]
-        ):
+        for scale, rot, locs in get_orientations(component_stats[(name, default_material)]):
             verts = []
             main_loc = Vector(locs[0])
             for c in locs:
@@ -812,9 +766,7 @@ class SceneImporter:
 
             self.context.collection.objects.link(ob)
             self.context.collection.objects.link(dob)
-            skp_log(
-                f"Complex group {name} {default_material} instanced {len(verts)} times, scale -> {scale}"
-            )
+            skp_log(f"Complex group {name} {default_material} instanced {len(verts)} times, scale -> {scale}")
 
         return
 
@@ -830,9 +782,7 @@ class SceneImporter:
             for scale, transforms in orientations.items():
                 yield scale, transforms
 
-        for _scale, transforms in get_orientations(
-            component_stats[(name, default_material)]
-        ):
+        for _scale, transforms in get_orientations(component_stats[(name, default_material)]):
             main_loc, _, real_scale = Matrix(transforms[0]).decompose()
             verts = []
             faces = []
@@ -842,18 +792,10 @@ class SceneImporter:
                 l_loc, l_rot, _l_scale = Matrix(c).decompose()
                 mat = Matrix.Translation(l_loc) * l_rot.to_matrix().to_4x4()
 
-                verts.append(
-                    Vector((mat * Vector((-0.05, -0.05, 0, 1.0)))[0:3]) - main_loc
-                )
-                verts.append(
-                    Vector((mat * Vector((0.05, -0.05, 0, 1.0)))[0:3]) - main_loc
-                )
-                verts.append(
-                    Vector((mat * Vector((0.05, 0.05, 0, 1.0)))[0:3]) - main_loc
-                )
-                verts.append(
-                    Vector((mat * Vector((-0.05, 0.05, 0, 1.0)))[0:3]) - main_loc
-                )
+                verts.append(Vector((mat * Vector((-0.05, -0.05, 0, 1.0)))[0:3]) - main_loc)
+                verts.append(Vector((mat * Vector((0.05, -0.05, 0, 1.0)))[0:3]) - main_loc)
+                verts.append(Vector((mat * Vector((0.05, 0.05, 0, 1.0)))[0:3]) - main_loc)
+                verts.append(Vector((mat * Vector((-0.05, 0.05, 0, 1.0)))[0:3]) - main_loc)
 
                 faces.append((f_count + 0, f_count + 1, f_count + 2, f_count + 3))
 
@@ -878,9 +820,7 @@ class SceneImporter:
             ob.parent = dob
             self.context.collection.objects.link(ob)
             self.context.collection.objects.link(dob)
-            skp_log(
-                f"Complex group {name} {default_material} instanced {f_count / 4} times"
-            )
+            skp_log(f"Complex group {name} {default_material} instanced {f_count / 4} times")
 
         return
 
@@ -1004,13 +944,9 @@ class ImportSKP(Operator, ImportHelper):
     # )
 
     def execute(self, context):
-        keywords = self.as_keywords(
-            ignore=("axis_forward", "axis_up", "filter_glob", "split_mode")
-        )
+        keywords = self.as_keywords(ignore=("axis_forward", "axis_up", "filter_glob", "split_mode"))
 
-        return (
-            SceneImporter().set_filename(keywords["filepath"]).load(context, **keywords)
-        )
+        return SceneImporter().set_filename(keywords["filepath"]).load(context, **keywords)
 
     def draw(self, context):
         layout = self.layout
@@ -1054,9 +990,7 @@ class ExportSKP(Operator, ExportHelper):
     def execute(self, context):
         keywords = self.as_keywords()
 
-        return (
-            SceneExporter().set_filename(keywords["filepath"]).save(context, **keywords)
-        )
+        return SceneExporter().set_filename(keywords["filepath"]).save(context, **keywords)
 
 
 def menu_func_import(self, context):
