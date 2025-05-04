@@ -1042,11 +1042,11 @@ class ExportSKP(Operator, ExportHelper):
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportSKP.bl_idname, text="Import SketchUp Scene(.skp)")
+    self.layout.operator(ImportSKP.bl_idname, text="Import SketchUp Scene (.skp)")
 
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportSKP.bl_idname, text="Export SketchUp Scene(.skp)")
+    self.layout.operator(ExportSKP.bl_idname, text="Export SketchUp Scene (.skp)")
 
 
 def register():
